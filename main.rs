@@ -1,52 +1,52 @@
-use rocksdb::{DB, Options, WriteBatch};
+mod db;
+mod types;
+
+use std::io;
+use types::Data;
 
 fn main(){
-    let path = "/home/hashkat/Documents/sdslabs/VectorDB/rocksdb";
-    let mut options = Options::default();
-    options.increase_parallelism(12);
-    options.optimize_level_style_compaction(512 * 1024 * 1024);
-    options.create_if_missing(true);
+    println!("Welcome");
+    loop {
+        println!("Create a collection (1)");
+        println!("View collections (2)");
+        println!("Delete a collection (3)");
+        println!("Insert in collection (4)");
+        println!("Exit (0)");
 
+        let mut choice = String::new();
+        io::stdin().read_line(&mut choice).expect("Failed to read line");
 
-    let db = DB::open_default(path).unwrap();
-    db.put(b"Some random key", b"Some random value").unwrap();
-
-    match db.get(b"Some random key") {
-        Ok(Some(value)) => {
-            if let Ok(value_as_str) = std::str::from_utf8(&value) {
-                println!("retrieved value {}", value_as_str);
-            } else {
-                println!("Invalid UTF-8 data");
-            }
-        },
-        Ok(None) => println!("value not found"),
-        Err(e) => println!("operational problem encountered: {}", e),
+        match choice.trim() {
+            "1"=> create_collection(),
+            "2"=> view_collections(),
+            "3"=> delete_collection(),
+            "4"=> insert_in_collection(),
+            "0"=> break,
+            _ => println!("Invalid choice"),
+        }
     }
-    {
-        let mut batch = WriteBatch::default();
-        batch.put(b"my key", b"my value");
-        batch.put(b"key2", b"value2");
-        batch.put(b"key3", b"value3");
+}
 
-        // delete_range is supported when use without transaction
-        batch.delete_range(b"key2", b"key3");
+fn create_collection() {
+    // Implement the logic to create a collection here
+    println!("Creating a collection...");
+    db::create_collection(Data{vector: vec![1,2,3], payload: "Hello".to_string()});
+    
+}
 
-        db.write(batch).unwrap();
-    }
-    match db.get(b"my key") {
-        Ok(Some(value)) => {
-            if let Ok(value_as_str) = std::str::from_utf8(&value) {
-                println!("retrieved value {}", value_as_str);
-            } else {
-                println!("Invalid UTF-8 data");
-            }
-        },
-        Ok(None) => println!("value not found"),
-        Err(e) => println!("operational problem encountered: {}", e),
-    }
+fn view_collections() {
+    // Implement the logic to view collections here
+    println!("Viewing collections...");
+}
 
+fn delete_collection() {
+    // Implement the logic to delete a collection here
+    println!("Deleting a collection...");
+}
 
-    db.delete(b"Some random key").unwrap();
+fn insert_in_collection() {
+    // Implement the logic to insert into a collection here
+    println!("Inserting into a collection...");
 }
 
 // let _ = DB::destroy(&Options::default(), path);
