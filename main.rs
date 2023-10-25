@@ -3,6 +3,7 @@ mod types;
 
 use std::io;
 use types::Data;
+use types::DataType;
 
 fn main(){
     println!("Welcome");
@@ -30,8 +31,23 @@ fn main(){
 fn create_collection() {
     // Implement the logic to create a collection here
     println!("Creating a collection...");
-    db::create_collection(Data{vector: vec![1,2,3], payload: "Hello".to_string()});
-    
+    print!("Enter data type (Text, Image, Audio, Blob): ");
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).expect("Failed to read line");
+    // match statement to match datatype from Datatype
+    let datatype = match input.trim() {
+        "Text" => DataType::Text,
+        "Image" => DataType::Image,
+        "Audio" => DataType::Audio,
+        "Blob" => DataType::Blob,
+        _ => {
+            panic!("Invalid data type");
+        }
+    };
+    print!("Enter payload: ");
+    let mut payload = String::new();
+    io::stdin().read_line(&mut payload).expect("Failed to read line");
+    db::create_collection(Data{vector: vec![1,2,3], payload: payload, data_type: datatype});
 }
 
 fn view_collections() {
@@ -48,5 +64,3 @@ fn insert_in_collection() {
     // Implement the logic to insert into a collection here
     println!("Inserting into a collection...");
 }
-
-// let _ = DB::destroy(&Options::default(), path);
