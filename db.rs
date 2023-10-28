@@ -12,6 +12,7 @@ use super::types::Data;
 use super::types::DataType;
 use rocksdb::Error as err;
 
+use bytevec::{ByteEncodable, ByteDecodable};
 
 pub struct Database{
     pub db: DBWithThreadMode<SingleThreaded>,
@@ -30,11 +31,15 @@ impl Database {
         options.create_if_missing(true);
 
         //Open the database
-        let mut database = Database{ 
+        let database = Database{ 
             db: DB::open(&options, path).unwrap(),
             dbType: data.data_type,
         };
-        match database.db.put(b"key1", b"value"){
+
+
+        let store_vec = data.vector.clone();
+        let value = serialize(store_vec);
+        match database.db.put(data.payload.as_bytes(), value.as_ref() as &[u8]){
             Ok(_) => {
                 println!("\n\nCreating a collection...");
                 println!("Vector: {:?}", data.vector);
@@ -49,10 +54,12 @@ impl Database {
 
     pub fn insert_collection(&self, data: Data){
         //ignoring the value of the result for now
+
         if data.data_type != self.dbType{
             println!("\n\nInvalid data type for inserting into the collection\n\n");
         }
-        match self.db.put(b"key2", b"value2"){
+        let value = serialize(data.vector);
+        match self.db.put(data.payload.as_bytes(), value.as_ref() as &[u8]){
             Ok(_) => println!("\n\nSuccessfully inserted into the collection...\n\n"),
             Err(e) => println!("\n\nAn error occurred while instering into the collection {:?}\n\n", e),
         }
@@ -64,7 +71,8 @@ impl Database {
         println!("\n\nIterating over collections...");
         for item in iter {
             let (key, value) = item.unwrap();
-            println!("Saw {:?} {}", std::str::from_utf8(&key).unwrap(), std::str::from_utf8(&value).unwrap());
+            let vec = deserialize(&value);
+            println!("Saw {:?} {:?}", std::str::from_utf8(&key).unwrap(), vec);
         }
         println!("\n\n");
     }
@@ -79,4 +87,16 @@ impl Database {
         }
     }
 
+}
+
+fn serialize(vector: Vec<u32>) -> Vec<u8> {
+
+    let bytes = vector.encode::<u32>().unwrap();
+    return bytes;
+}
+
+//to deserialize the vector used in get method
+fn deserialize(bytes: &[u8]) -> Vec<u32> {
+    let vec = <Vec<u32>>::decode::<u32>(&bytes).unwrap();
+    return vec;
 }

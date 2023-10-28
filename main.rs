@@ -6,6 +6,8 @@ use types::Data;
 use types::DataType;
 use types::VectorData;
 use db::Database;
+mod vectoriser;
+
 fn main(){
     println!("Welcome");
     let mut database: Option<Database> = None;
@@ -71,7 +73,11 @@ fn create_collection() -> Database{
     let mut payload = String::new();
     io::stdin().read_line(&mut payload).expect("Failed to read line");
 
-    match Database::create_collection_default(Data{vector: vec![1,2,3], payload: payload, data_type: datatype}){
+    //convert the given payload into a vector
+
+    let data = vectoriser::vectorize(Data{vector: vec![1,2,3], payload: payload, data_type: datatype});
+
+    match Database::create_collection_default(data){
         Ok(database) => return database,
         Err(err) => panic!("Failed to create collection as {:?}", err),
     };
@@ -105,7 +111,10 @@ fn insert_in_collection(database: &Database) {
     println!("Enter payload: ");
     let mut payload = String::new();
     io::stdin().read_line(&mut payload).expect("Failed to read line");
-    database.insert_collection(Data{vector: vec![1,2,3], payload: payload, data_type: datatype});
+
+    let data = vectoriser::vectorize(Data{vector: vec![1,2,3], payload: payload, data_type: datatype});
+
+    database.insert_collection(data);
     println!("Inserting into a collection...");
 
 }
