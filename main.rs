@@ -1,13 +1,14 @@
 mod db;
 mod types;
-
 use std::io;
+// use std::ops::Deref;
 use types::Data;
 use types::DataType;
 use types::VectorData;
-
+use db::Database;
 fn main(){
     println!("Welcome");
+    let mut database: Option<Database> = None;
     loop {
         println!("Create a collection (1)");
         println!("View collections (2)");
@@ -19,20 +20,41 @@ fn main(){
         io::stdin().read_line(&mut choice).expect("Failed to read line");
 
         match choice.trim() {
-            "1"=> create_collection(),
-            "2"=> view_collections(),
-            "3"=> delete_collection(),
-            "4"=> insert_in_collection(),
+            "1"=> {
+                database = Some(create_collection());
+            },
+            "2"=> {
+                match database {
+                    Some(_) => view_collections(database.as_ref().unwrap()),
+                    None => println!("Error in retreiving collection"),
+                }
+            },
+            "3"=> {
+                match database {
+                    Some(_) => {
+                        delete_collection(database.as_ref().unwrap());
+                        database = None;
+                    },
+                    None => println!("Error in retreiving collection"),
+                }
+            },
+            "4"=> {
+                match database {
+                    Some(_) => insert_in_collection(database.as_ref().unwrap()),
+                    None => println!("Error in retreiving collection"),
+                }
+            },
+            
             "0"=> break,
             _ => println!("Invalid choice"),
         }
     }
 }
 
-fn create_collection() {
+fn create_collection() -> Database{
     // Implement the logic to create a collection here
     println!("Creating a collection...");
-    print!("Enter data type (Text, Image, Audio, Blob): ");
+    println!("Enter data type (Text, Image, Audio, Blob): ");
     let mut input = String::new();
     io::stdin().read_line(&mut input).expect("Failed to read line");
     // match statement to match datatype from Datatype
@@ -45,27 +67,45 @@ fn create_collection() {
             panic!("Invalid data type");
         }
     };
-    print!("Enter payload: ");
+    println!("Enter payload: ");
     let mut payload = String::new();
     io::stdin().read_line(&mut payload).expect("Failed to read line");
-    let vector = VectorData{
-        vector: vec![1.0,2.0,3.0],
-        embedding_type: String::from("text")
+
+    match Database::create_collection_default(Data{vector: vec![1,2,3], payload: payload, data_type: datatype}){
+        Ok(database) => return database,
+        Err(err) => panic!("Failed to create collection as {:?}", err),
     };
-    db::create_collection(Data{vector: vector, payload: payload, data_type: datatype});
 }
 
-fn view_collections() {
-    // Implement the logic to view collections here
+fn view_collections(database: &Database) {
     println!("Viewing collections...");
+    Database::view_collections(&database);
 }
 
-fn delete_collection() {
-    // Implement the logic to delete a collection here
+fn delete_collection(database: &Database) {
     println!("Deleting a collection...");
+    database.delete_collection();
 }
 
-fn insert_in_collection() {
-    // Implement the logic to insert into a collection here
+fn insert_in_collection(database: &Database) {
+
+    println!("Enter data type (Text, Image, Audio, Blob): ");
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).expect("Failed to read line");
+    // match statement to match datatype from Datatype
+    let datatype = match input.trim() {
+        "Text" => DataType::Text,
+        "Image" => DataType::Image,
+        "Audio" => DataType::Audio,
+        "Blob" => DataType::Blob,
+        _ => {
+            panic!("Invalid data type");
+        }
+    };
+    println!("Enter payload: ");
+    let mut payload = String::new();
+    io::stdin().read_line(&mut payload).expect("Failed to read line");
+    database.insert_collection(Data{vector: vec![1,2,3], payload: payload, data_type: datatype});
     println!("Inserting into a collection...");
+
 }

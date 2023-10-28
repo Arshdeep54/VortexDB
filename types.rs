@@ -5,6 +5,8 @@ pub struct VectorData {
 }
 
 #[derive(Debug)]
+
+#[derive(Clone, Copy, PartialEq)]
 pub enum DataType{
     Text,
     Image,
