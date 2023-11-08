@@ -4,6 +4,7 @@ mod types;
 use std::io;
 use types::Data;
 use types::DataType;
+use types::VectorData;
 
 fn main(){
     println!("Welcome");
@@ -47,7 +48,11 @@ fn create_collection() {
     print!("Enter payload: ");
     let mut payload = String::new();
     io::stdin().read_line(&mut payload).expect("Failed to read line");
-    db::create_collection(Data{vector: vec![1,2,3], payload: payload, data_type: datatype});
+    let vector = VectorData{
+        vector: vec![1.0,2.0,3.0],
+        embedding_type: String::from("text")
+    };
+    db::create_collection(Data{vector: vector, payload: payload, data_type: datatype});
 }
 
 fn view_collections() {
