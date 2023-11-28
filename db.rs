@@ -7,6 +7,9 @@ use rocksdb::{
     DBWithThreadMode, 
     IteratorMode
 };
+use dotenv::dotenv;
+use std::env;
+
 // pub mod db;
 use super::types::Data;
 use super::types::DataType;
@@ -16,52 +19,50 @@ use bytevec::{ByteEncodable, ByteDecodable};
 
 pub struct Database{
     pub db: DBWithThreadMode<SingleThreaded>,
-    pub dbType: DataType,
+    pub db_type: DataType,
+    pub path: String,
 }
 
 impl Database {
-    pub fn create_collection_default(data: Data) -> Result<Database, err> {
-
-        let path = "/Users/khushalagrawal/Desktop/Labs/vector-db/db";
+    //change to create/switch database
+    pub fn create_switch_database(datatype: DataType) -> Result<Database, err> {
         let mut options = Options::default();
+
         //Optimize RocksDB  
         options.increase_parallelism(12);
         options.optimize_level_style_compaction(512*1024*1024);
+
         //Create the database if not already present
         options.create_if_missing(true);
 
+        dotenv().ok();
+        let addr = env::var("DATABASE_PATH").unwrap();
+
+        println!("\n\nCreating database...\n\n");
         //Open the database
         let database = Database{ 
-            db: DB::open(&options, path).unwrap(),
-            dbType: data.data_type,
+            db: DB::open(&options, &addr).unwrap(),
+            db_type: datatype,
+            path: addr,
         };
+        println!("Created database\n\n");
+        return Ok(database);
+    }
 
-
-        let store_vec = data.vector.clone();
-        let value = serialize(store_vec);
-        match database.db.put(data.payload.as_bytes(), value.as_ref() as &[u8]){
-            Ok(_) => {
-                println!("\n\nCreating a collection...");
-                println!("Vector: {:?}", data.vector);
-                print!("Payload: {}", data.payload);
-                println!("Data type: {:?}\n\n", data.data_type);    
-
-                return Ok(database)
-            },
-            Err(e) => return Err(e),
-        };
+    pub fn view_current_path(&self){
+        println!("\n\nYour current path is: {}\n\n", self.path);
     }
 
     pub fn insert_collection(&self, data: Data){
-        //ignoring the value of the result for now
-
-        if data.data_type != self.dbType{
+        if data.data_type != self.db_type{
             println!("\n\nInvalid data type for inserting into the collection\n\n");
         }
-        let value = serialize(data.vector);
-        match self.db.put(data.payload.as_bytes(), value.as_ref() as &[u8]){
-            Ok(_) => println!("\n\nSuccessfully inserted into the collection...\n\n"),
-            Err(e) => println!("\n\nAn error occurred while instering into the collection {:?}\n\n", e),
+        else{
+            let value = serialize(data.vector);
+            match self.db.put(data.payload.as_bytes(), value.as_ref() as &[u8]){
+                Ok(_) => println!("\n\nSuccessfully inserted into the collection...\n\n"),
+                Err(e) => println!("\n\nAn error occurred while instering into the collection {:?}\n\n", e),
+            }
         }
     }
 
@@ -79,9 +80,8 @@ impl Database {
 
     pub fn delete_collection(&self){
         //destroy the collection
-        let path = "/Users/khushalagrawal/Desktop/Labs/vector-db/db";
         let options = Options::default();
-        match DB::destroy(&options, &path) {
+        match DB::destroy(&options, &self.path) {
             Ok(()) => println!("Database successfully deleted"),
             Err(e) => println!("An error occurred while deleting the database: {}", e),
         }

@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 bytevec = "0.2.0"
+dotenv = "0.15.0"
 rocksdb = "0.21.0"
 
 [[bin]]

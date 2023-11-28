@@ -16,6 +16,7 @@ fn main(){
         println!("View collections (2)");
         println!("Delete a collection (3)");
         println!("Insert in collection (4)");
+        println!("View current path (5)");
         println!("Exit (0)");
 
         let mut choice = String::new();
@@ -23,7 +24,7 @@ fn main(){
 
         match choice.trim() {
             "1"=> {
-                database = Some(create_collection());
+                database = Some(create_switch_collection());
             },
             "2"=> {
                 match database {
@@ -46,6 +47,12 @@ fn main(){
                     None => println!("Error in retreiving collection"),
                 }
             },
+            "5" => {
+                match database {
+                    Some(_) => Database::view_current_path(database.as_ref().unwrap()),
+                    None => println!("Currently no database targeted"),
+                }
+            },
             
             "0"=> break,
             _ => println!("Invalid choice"),
@@ -53,13 +60,13 @@ fn main(){
     }
 }
 
-fn create_collection() -> Database{
-    // Implement the logic to create a collection here
-    println!("Creating a collection...");
+fn create_switch_collection() -> Database{
+
+    //need to check if the database already exists
+
     println!("Enter data type (Text, Image, Audio, Blob): ");
     let mut input = String::new();
     io::stdin().read_line(&mut input).expect("Failed to read line");
-    // match statement to match datatype from Datatype
     let datatype = match input.trim() {
         "Text" => DataType::Text,
         "Image" => DataType::Image,
@@ -69,15 +76,8 @@ fn create_collection() -> Database{
             panic!("Invalid data type");
         }
     };
-    println!("Enter payload: ");
-    let mut payload = String::new();
-    io::stdin().read_line(&mut payload).expect("Failed to read line");
 
-    //convert the given payload into a vector
-
-    let data = vectoriser::vectorize(Data{vector: vec![1,2,3], payload: payload, data_type: datatype});
-
-    match Database::create_collection_default(data){
+    match Database::create_switch_database(datatype){
         Ok(database) => return database,
         Err(err) => panic!("Failed to create collection as {:?}", err),
     };
