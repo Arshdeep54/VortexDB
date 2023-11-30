@@ -9,23 +9,33 @@ use rocksdb::{
 };
 use dotenv::dotenv;
 use std::env;
+use std::path::Path;
+use std::sync::atomic::AtomicU64;
+
+use crate::types::VectorData;
 
 // pub mod db;
 use super::types::Data;
-use super::types::DataType;
 use rocksdb::Error as err;
 
-use bytevec::{ByteEncodable, ByteDecodable};
+//unique id
+static ID: AtomicU64= AtomicU64::new(1);
+
+
 
 pub struct Database{
     pub db: DBWithThreadMode<SingleThreaded>,
-    pub db_type: DataType,
     pub path: String,
 }
 
 impl Database {
-    //change to create/switch database
-    pub fn create_switch_database(datatype: DataType) -> Result<Database, err> {
+    //error correction in all cases
+    //remove datatype
+    //serialize and deserialize datatypes
+    //return node key/id
+
+
+    pub fn create_switch_database() -> Result<Database, err> {
         let mut options = Options::default();
 
         //Optimize RocksDB  
@@ -37,15 +47,11 @@ impl Database {
 
         dotenv().ok();
         let addr = env::var("DATABASE_PATH").unwrap();
-
-        println!("\n\nCreating database...\n\n");
         //Open the database
         let database = Database{ 
             db: DB::open(&options, &addr).unwrap(),
-            db_type: datatype,
             path: addr,
         };
-        println!("Created database\n\n");
         return Ok(database);
     }
 
@@ -53,17 +59,16 @@ impl Database {
         println!("\n\nYour current path is: {}\n\n", self.path);
     }
 
-    pub fn insert_collection(&self, data: Data){
-        if data.data_type != self.db_type{
-            println!("\n\nInvalid data type for inserting into the collection\n\n");
-        }
-        else{
-            let value = serialize(data.vector);
-            match self.db.put(data.payload.as_bytes(), value.as_ref() as &[u8]){
-                Ok(_) => println!("\n\nSuccessfully inserted into the collection...\n\n"),
-                Err(e) => println!("\n\nAn error occurred while instering into the collection {:?}\n\n", e),
-            }
-        }
+    pub fn insert_collection(&self, data: Data) -> u64{
+        let value = serialize(data);
+        println!("{:?}", value);
+        let key = ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+        match self.db.put(key.to_string(), value.as_ref() as &[u8]){
+            Ok(_) => println!("\n\nSuccessfully inserted into the collection...\n\n"),
+            Err(e) => println!("\n\nAn error occurred while instering into the collection {:?}\n\n", e),
+        };
+        return key;
     }
 
     pub fn view_collections(database: &Database){
@@ -89,14 +94,35 @@ impl Database {
 
 }
 
-fn serialize(vector: Vec<u32>) -> Vec<u8> {
+pub fn check_path() -> bool{
+    dotenv().ok();
+    let file_path = env::var("DATABASE_PATH").unwrap();
+    let path = Path::new(&file_path);
+    return path.exists();
+}
 
-    let bytes = vector.encode::<u32>().unwrap();
+pub fn check_database() -> bool{
+    dotenv().ok();
+    let file_path = env::var("DATABASE_PATH").unwrap();
+    let options = Options::default();
+
+    match DB::open_for_read_only(&options, file_path, false){
+        Ok(_) => return true,
+        Err(_) => {
+            return false;
+        }
+    }
+}
+
+fn serialize(vector: Data) -> Vec<u8> {
+
+    //write serialize function here
+    let bytes = bincode::serialize(&vector).unwrap();
     return bytes;
 }
 
 //to deserialize the vector used in get method
-fn deserialize(bytes: &[u8]) -> Vec<u32> {
-    let vec = <Vec<u32>>::decode::<u32>(&bytes).unwrap();
+fn deserialize(bytes: &[u8]) -> Data {
+    let vec = bincode::deserialize(&bytes).unwrap();
     return vec;
 }
