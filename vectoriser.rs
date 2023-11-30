@@ -6,7 +6,7 @@ pub fn vectorize(data: Data) -> Data{
     for part in parts{
         vector_store.push(part.chars().map(|c| c as i32 as f32).sum())
     };
-    let mut vec = VectorData{
+    let vec = VectorData{
         vector: vector_store,
         embedding_type: "idk?".to_string(),
     };

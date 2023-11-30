@@ -1,7 +1,7 @@
 mod db;
 mod types;
 use std::{io, env, io::Write};
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 // use std::ops::Deref;
 use types::{Data, DataType, VectorData};
 use db::{Database, check_path, check_database};
@@ -20,8 +20,8 @@ fn main(){
     let mut database: Database = database.unwrap();
     loop {
         //delete needs to be implmented
-        //collections need to be implemented
-        
+        //databases need to be implemented
+
         println!("Insert in Database (1)");
         println!("View Database (2)");
         println!("Delete from Database (3)");
@@ -34,13 +34,13 @@ fn main(){
 
         match choice.trim() {
             "1"=> {
-               insert_in_collection(&database);
+               insert_in_database(&database);
             },
             "2"=> {
-                view_collections(&database);
+                view_databases(&database);
             },
             "3"=> {
-                delete_collection(&database);
+                delete_database(&database);
             },
             "4"=> {
                 Database::view_current_path(&database);
@@ -68,13 +68,13 @@ fn valid_database() -> Option<Database> {
             println!("Path is valid, validating database...");
             if check_database(){
                 println!("Database exists on current path");
-                database =  Some(create_switch_collection());
+                database =  Some(create_switch_database());
                 break;
             }
             else {
                 println!("Database does not exist on current path.\n");
                 println!("Creating a new database...");
-                database = Some(create_switch_collection());
+                database = Some(create_switch_database());
                 break;
             }
         }
@@ -143,24 +143,24 @@ fn write_env(){
     }
 }
 
-fn create_switch_collection() -> Database{
+fn create_switch_database() -> Database{
     match Database::create_switch_database(){
         Ok(database) => return database,
-        Err(err) => panic!("Failed to create collection as {:?}", err),
+        Err(err) => panic!("Failed to create database as {:?}", err),
     };
 }
 
-fn view_collections(database: &Database) {
-    println!("Viewing collections...");
-    Database::view_collections(&database);
+fn view_databases(database: &Database) {
+    println!("Viewing databases...");
+    Database::view_database(&database);
 }
 
-fn delete_collection(database: &Database) {
-    println!("Deleting a collection...");
-    database.delete_collection();
+fn delete_database(database: &Database) {
+    println!("Deleting a database...");
+    database.delete_database();
 }
 
-fn insert_in_collection(database: &Database) {
+fn insert_in_database(database: &Database) {
 
     println!("Enter data type (Text, Image, Audio, Blob): ");
     let mut input = String::new();
@@ -181,8 +181,7 @@ fn insert_in_collection(database: &Database) {
 
     let data = vectoriser::vectorize(Data{vector: VectorData::default(), payload: payload, data_type: datatype});
 
-    println!("Inserting into a collection...");
-    let key = database.insert_collection(data);
-    println!("Inserted data with key: {}", key);
+    println!("Inserting into a database...");
+    database.insert_in_database(data);
 
 }

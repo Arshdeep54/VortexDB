@@ -1,3 +1,4 @@
+//For rocks-db
 use rocksdb::{
     DB, 
     Options, 
@@ -5,22 +6,18 @@ use rocksdb::{
     // DBPinnableSlice, 
     SingleThreaded, 
     DBWithThreadMode, 
-    IteratorMode
+    IteratorMode,
+    Error as err,
 };
-use dotenv::dotenv;
-use std::env;
-use std::path::Path;
-use std::sync::atomic::AtomicU64;
-
-use crate::types::VectorData;
-
-// pub mod db;
 use super::types::Data;
-use rocksdb::Error as err;
+use sha2::{Sha256, Digest};
 
-//unique id
-static ID: AtomicU64= AtomicU64::new(1);
-
+//For env file
+use dotenv::dotenv;
+use std::{
+    env,
+    path::Path,
+};
 
 
 pub struct Database{
@@ -30,10 +27,7 @@ pub struct Database{
 
 impl Database {
     //error correction in all cases
-    //remove datatype
-    //serialize and deserialize datatypes
-    //return node key/id
-
+    //close current database on switching to a new database
 
     pub fn create_switch_database() -> Result<Database, err> {
         let mut options = Options::default();
@@ -59,32 +53,33 @@ impl Database {
         println!("\n\nYour current path is: {}\n\n", self.path);
     }
 
-    pub fn insert_collection(&self, data: Data) -> u64{
+    pub fn insert_in_database(&self, data: Data){
         let value = serialize(data);
-        println!("{:?}", value);
-        let key = ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let mut hasher = Sha256::new();
+        hasher.update(&value);
+        let key = hasher.finalize();
 
-        match self.db.put(key.to_string(), value.as_ref() as &[u8]){
-            Ok(_) => println!("\n\nSuccessfully inserted into the collection...\n\n"),
-            Err(e) => println!("\n\nAn error occurred while instering into the collection {:?}\n\n", e),
+        match self.db.put(key, value.as_ref() as &[u8]){
+            Ok(_) => println!("\nSuccessfully inserted into the database...\n"),
+            Err(e) => println!("\nAn error occurred while instering into the database {:?}\n", e),
         };
-        return key;
+        println!("Inserted data with key {:x}", key);
     }
 
-    pub fn view_collections(database: &Database){
+    pub fn view_database(database: &Database){
 
         let iter = database.db.iterator(IteratorMode::Start); //iterates from the start
-        println!("\n\nIterating over collections...");
+        println!("\n\nIterating over database...");
         for item in iter {
-            let (key, value) = item.unwrap();
+            let (_, value) = item.unwrap();
             let vec = deserialize(&value);
-            println!("Saw {:?} {:?}", std::str::from_utf8(&key).unwrap(), vec);
+            println!("Saw {:?}", vec);
         }
-        println!("\n\n");
+        println!("\n");
     }
 
-    pub fn delete_collection(&self){
-        //destroy the collection
+    pub fn delete_database(&self){
+        //destroy the database
         let options = Options::default();
         match DB::destroy(&options, &self.path) {
             Ok(()) => println!("Database successfully deleted"),
@@ -115,13 +110,10 @@ pub fn check_database() -> bool{
 }
 
 fn serialize(vector: Data) -> Vec<u8> {
-
-    //write serialize function here
     let bytes = bincode::serialize(&vector).unwrap();
     return bytes;
 }
 
-//to deserialize the vector used in get method
 fn deserialize(bytes: &[u8]) -> Data {
     let vec = bincode::deserialize(&bytes).unwrap();
     return vec;
