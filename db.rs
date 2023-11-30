@@ -17,6 +17,7 @@ use dotenv::dotenv;
 use std::{
     env,
     path::Path,
+    collections::HashMap,
 };
 
 
@@ -27,9 +28,8 @@ pub struct Database{
 
 impl Database {
     //error correction in all cases
-    //close current database on switching to a new database
 
-    pub fn create_switch_database() -> Result<Database, err> {
+    pub fn create_switch_database(addr: String) -> Result<Database, err> {
         let mut options = Options::default();
 
         //Optimize RocksDB  
@@ -40,7 +40,6 @@ impl Database {
         options.create_if_missing(true);
 
         dotenv().ok();
-        let addr = env::var("DATABASE_PATH").unwrap();
         //Open the database
         let database = Database{ 
             db: DB::open(&options, &addr).unwrap(),
@@ -87,18 +86,28 @@ impl Database {
         }
     }
 
+    pub fn delete_from_database(&self, data: Data){
+        let value = serialize(data);
+        let mut hasher = Sha256::new();
+        hasher.update(&value);
+        let key = hasher.finalize();
+
+        match self.db.delete(key){
+            Ok(_) => println!("Deleted successfully"),
+            Err(e) => println!("An error occurred while deleting the database: {}", e),
+        }
+    }
+
 }
 
-pub fn check_path() -> bool{
+pub fn check_path(file_path:&String) -> bool{
     dotenv().ok();
-    let file_path = env::var("DATABASE_PATH").unwrap();
-    let path = Path::new(&file_path);
+    let path = Path::new(file_path);
     return path.exists();
 }
 
-pub fn check_database() -> bool{
+pub fn check_database(file_path: &String) -> bool{
     dotenv().ok();
-    let file_path = env::var("DATABASE_PATH").unwrap();
     let options = Options::default();
 
     match DB::open_for_read_only(&options, file_path, false){
@@ -107,6 +116,25 @@ pub fn check_database() -> bool{
             return false;
         }
     }
+}
+
+pub fn find_databases() -> HashMap<String, String>{
+    let mut collections = HashMap::new();
+    dotenv().ok();
+    let count: u32 = env::var("NUMBER_OF_DATABASE").unwrap().parse().unwrap();
+    for cnt in 1..(count+1) {
+        let temp: String = cnt.to_string();
+        let mut db_path_var = "DATABASE_PATH".to_string();
+        let mut db_name_var = "DATABASE_NAME".to_string();
+        db_path_var.push_str(&temp);
+        db_name_var.push_str(&temp);
+
+        collections.insert(
+            env::var(db_name_var).unwrap(),
+            env::var(db_path_var).unwrap(),
+        );
+    }
+    return collections;
 }
 
 fn serialize(vector: Data) -> Vec<u8> {
