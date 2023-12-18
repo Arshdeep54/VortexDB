@@ -84,6 +84,22 @@ impl Database {
         }
     }
 
+    pub fn delete_from_database(&self, data: Data) {
+        let value = serialize(data);
+        let mut hasher = Sha256::new();
+        hasher.update(&value);
+        let key = hasher.finalize();
+
+        match self.db.get(&key) {
+            Ok(Some(_)) => match self.db.delete(key) {
+                Ok(_) => println!("Deleted successfully"),
+                Err(e) => println!("An error occurred while deleting the database: {}", e),
+            },
+            Ok(None) => println!("Key does not exist"),
+            Err(e) => println!("Error getting key: {}", e),
+        }
+    }
+
     pub fn delete_from_database_with_key(&self, input: &str) {
         match decode(input) {
             Ok(bytes) => {

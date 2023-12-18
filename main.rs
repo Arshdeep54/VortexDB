@@ -256,12 +256,81 @@ fn delete_database(database: &Database) {
 }
 
 fn delete_from_database(database: &Database) {
-    println!("Enter key");
-    let mut input = String::new();
+    println!("(1) Delete by entering data");
+    println!("(2) Delete by entering key");
+
+    let mut select = String::new();
     io::stdin()
-        .read_line(&mut input)
+        .read_line(&mut select)
         .expect("Failed to read line");
-    database.delete_from_database_with_key(input.trim());
+    match select.trim() {
+        "1" => {
+            println!("Enter data type (Text, Image, Audio, Blob): ");
+            let mut input = String::new();
+            io::stdin()
+                .read_line(&mut input)
+                .expect("Failed to read line");
+            // match statement to match datatype from Datatype
+            let datatype = match input.trim() {
+                "Text" => DataType::Text,
+                "Image" => DataType::Image,
+                "Audio" => DataType::Audio,
+                "Blob" => DataType::Blob,
+                _ => {
+                    panic!("Invalid data type");
+                }
+            };
+            println!("Enter payload: ");
+            let mut payload = String::new();
+            io::stdin()
+                .read_line(&mut payload)
+                .expect("Failed to read line");
+
+            let mut embedding_type = String::new();
+            println!("Enter embedding type: ");
+            io::stdin()
+                .read_line(&mut embedding_type)
+                .expect("Failed to read line");
+
+            let mut vec_len = String::new();
+            println!("Enter vector length: ");
+            io::stdin()
+                .read_line(&mut vec_len)
+                .expect("Failed to read line");
+            let vec_len: usize = vec_len.trim().parse().unwrap();
+            println!("Enter values: ");
+            let mut vec = Vec::new();
+            for _ in 0..vec_len {
+                let mut line = String::new();
+                io::stdin().read_line(&mut line).unwrap();
+                let num: f32 = line.trim().parse().unwrap();
+                vec.push(num);
+            }
+            println!("{:?}", vec);
+
+            let data: Data = Data {
+                vector: VectorData {
+                    vector: vec,
+                    embedding_type: embedding_type,
+                },
+                payload: payload,
+                data_type: datatype,
+            };
+            database.delete_from_database(data);
+        }
+        "2" => {
+            println!("Enter key");
+            let mut input = String::new();
+            io::stdin()
+                .read_line(&mut input)
+                .expect("Failed to read line");
+            database.delete_from_database_with_key(input.trim());
+        }
+        _ => {
+            println!("Invalid choice");
+            return;
+        }
+    }
 }
 
 fn insert_in_database(database: &Database) {
