@@ -16,7 +16,8 @@ fn main() {
     loop {
         println!("\n(1) Show databases");
         println!("(2) Use database");
-        println!("(3) Delete database");
+        println!("(3) Add new database");
+        println!("(4) Delete database");
         println!("(0) Exit");
 
         let mut select = String::new();
@@ -54,8 +55,6 @@ fn main() {
 
                     let database: Database = database.unwrap();
                     loop {
-                        //delete needs to be implmented
-
                         println!("{}", input.trim());
                         println!("(1) Insert in Database");
                         println!("(2) View Database");
@@ -97,6 +96,21 @@ fn main() {
                 }
             }
             "3" => {
+                println!("Enter the databse name");
+                let mut name = String::new();
+                io::stdin()
+                    .read_line(&mut name)
+                    .expect("Failed to read line");
+                if databases.contains_key(name.trim()) {
+                    println!("This name already exists");
+                    continue;
+                }
+                if !change_path(&mut databases, name.trim()) {
+                    println!("Created database successfully");
+                }
+                continue;
+            }
+            "4" => {
                 println!("Enter the database name");
                 let mut input = String::new();
                 io::stdin()
