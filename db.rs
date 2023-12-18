@@ -141,6 +141,27 @@ impl Database {
             }
         }
     }
+
+    pub fn get_data_from_key(&self, input: &str) -> Option<Data>{
+        match decode(input) {
+            Ok(bytes) => {
+                let key = bytes.into_boxed_slice();
+                match self.db.get(&key) {
+                    Ok(Some(value)) => {
+                        let vec = deserialize(&value);
+                        return Some(vec) ;
+                    }
+                    Ok(None) => { println!("Key does not exist"); return None; },
+                    Err(e) => { println!("Error getting key: {}", e); return None; },
+                }
+            }
+            Err(_) => {
+                println!("Invalid key");
+                return None;
+            }
+        }
+    }
+
 }
 
 pub fn check_path(file_path: &String) -> bool {
