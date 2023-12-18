@@ -460,6 +460,7 @@ fn find_knn ( database: &Database) {
         println!("\nPlease Select method for KNN");
         println!("(1) Euclidean Distance");
         println!("(2) Manhattan Distance");
+        println!("(3) Hamming Distance");
 
         let mut select = String::new();
         io::stdin()
@@ -478,6 +479,15 @@ fn find_knn ( database: &Database) {
             "2"=> {
                 println!("The k nearest values are");
                 let result = database.get_manhattan_knn(&givenvec , kvalue);
+                for r in &result {
+                    println!("{}",r);
+                }
+                println!();
+                break ;
+            }
+            "3"=> {
+                println!("The k nearest values are");
+                let result = database.get_hamming_knn(&givenvec , kvalue);
                 for r in &result {
                     println!("{}",r);
                 }
