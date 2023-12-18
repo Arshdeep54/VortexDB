@@ -260,6 +260,43 @@ impl Database {
         return knn ; 
     }
 
+    pub fn get_cosine_knn ( &self, input: &Vec<f32> , kvalue:usize ) -> Vec<String> {
+   	
+        let mut all_scores : Vec < ( f32 , String ) > = Vec::<(f32,String)>::new() ;
+        
+        let iter = self.db.iterator(IteratorMode::Start);
+ 
+         for item in iter {
+             let (_, value) = item.unwrap();
+             
+             let mut hasher = Sha256::new();
+             hasher.update(&value);
+             let key = format!("{:x}",hasher.finalize());
+ 
+             let vec = deserialize(&value).vector.vector;
+             let mut a : f32 = 0.0 ;
+             let mut b : f32 = 0.0 ;
+             let mut c : f32 = 0.0 ;
+             for i in 0..vec.len() {
+                 a += input[i] * vec[i];
+                 b += input[i] * input[i];
+                 c += vec[i] * vec[i];
+             }
+          b = b.sqrt();
+          c = c.sqrt();
+             all_scores.push((a/(b*c),key));
+         }
+         
+         all_scores.sort_by(|a, b| a.partial_cmp(b).unwrap());
+         all_scores.reverse();
+        
+        let mut knn = Vec::<String>::new();
+        
+        for i in 0..std::cmp::min(kvalue,all_scores.len()) {
+            knn.push(all_scores[i].1.clone());
+        }
+        return knn ; 
+    }
 }
 
 pub fn check_path(file_path: &String) -> bool {

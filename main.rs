@@ -494,6 +494,15 @@ fn find_knn ( database: &Database) {
                 println!();
                 break ;
             }
+            "4"=> {
+                println!("The k nearest values are");
+                let result = database.get_cosine_knn(&givenvec , kvalue);
+                for r in &result {
+                    println!("{}",r);
+                }
+                println!();
+                break ;
+            }
             _ => {
                 println!("Invalid choice");
             }
