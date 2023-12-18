@@ -59,8 +59,9 @@ fn main() {
                         println!("(2) View Database");
                         println!("(3) Get from Database");
                         println!("(4) Delete from Database");
-                        println!("(5) View current path");
-                        println!("(6) Switch database");
+                        println!("(5) Find K Nearest Neighbours");
+                        println!("(6) View current path");
+                        println!("(7) Switch database");
 
                         let mut choice = String::new();
                         io::stdin()
@@ -80,10 +81,13 @@ fn main() {
                             "4" => {
                                 delete_from_database(&database);
                             }
-                            "5" => {
-                                Database::view_current_path(&database);
+                            "5" =>{
+                            	find_knn(&database);
                             }
                             "6" => {
+                                Database::view_current_path(&database);
+                            }
+                            "7" => {
                                 break;
                             }
                             _ => println!("Invalid choice"),
@@ -396,4 +400,52 @@ fn get_from_database(database: &Database) {
         .read_line(&mut input)
         .expect("Failed to read key");
     database.get(input.trim());
+}
+
+fn find_knn ( database: &Database) {
+    println!("\nPlease Select input for KNN");
+    println!("(1) Enter Data");
+    println!("(2) Enter Key");
+    let givenvec ;
+    let mut select = String::new();
+    io::stdin()
+        .read_line(&mut select)
+        .expect("Failed to read line");
+    match select.trim() {
+        "1" => {
+
+            let mut vec_len = String::new();
+            println!("Enter vector length: ");
+            io::stdin()
+                .read_line(&mut vec_len)
+                .expect("Failed to read line");
+            let vec_len: usize = vec_len.trim().parse().unwrap();
+            println!("Enter values: ");
+            let mut vec = Vec::new();
+            for _ in 0..vec_len {
+                let mut line = String::new();
+                io::stdin().read_line(&mut line).unwrap();
+                let num: f32 = line.trim().parse().unwrap();
+                vec.push(num);
+            }
+	    givenvec = vec ; 
+        }
+        "2" => {
+            println!("Enter key");
+            let mut input = String::new();
+            io::stdin()
+                .read_line(&mut input)
+                .expect("Failed to read line");
+		let data = database.get_data_from_key(input.trim());
+		match data {
+			None => { return; },
+			Some(data) => { givenvec = data.vector.vector ; }
+		}
+        }
+        _ => {
+            println!("Invalid choice");
+            return;
+        }
+    }
+        
 }
