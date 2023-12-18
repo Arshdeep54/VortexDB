@@ -39,12 +39,17 @@ fn main() {
                     .expect("Faile to read line");
 
                 if databases.contains_key(input.trim()) {
-                    let database: Option<Database> =
-                        valid_database(databases.get(input.trim()).unwrap());
+                    let mut database: Option<Database> =
+                        valid_database(&mut databases, input.trim());
 
                     if database.is_none() {
-                        databases.remove(input.trim());
-                        continue;
+                        let exit = change_path(&mut databases, input.trim());
+                        if exit {
+                            databases.remove(input.trim());
+                            continue;
+                        } else {
+                            database = valid_database(&mut databases, input.trim());
+                        }
                     }
 
                     let database: Database = database.unwrap();
@@ -99,12 +104,12 @@ fn main() {
                     .expect("Filed to read line");
 
                 if databases.contains_key(input.trim()) {
-                    let exit = change_path();
+                    let exit = change_path(&mut databases, &input);
                     if exit {
                         continue;
                     }
 
-                    let database = valid_database(databases.get(input.trim()).unwrap()).unwrap();
+                    let database = valid_database(&mut databases, input.trim()).unwrap();
                     delete_database(&database);
                 } else {
                     println!("Invalid input");
@@ -120,35 +125,31 @@ fn main() {
     }
 }
 
-fn valid_database(file_path: &String) -> Option<Database> {
+fn valid_database(databases: &mut HashMap<String, String>, input: &str) -> Option<Database> {
+    let file_path = databases.get(input).unwrap();
     let mut database: Option<Database> = None;
-    loop {
-        if check_path(file_path) {
-            println!("Path is valid, validating database...");
-            if check_database(file_path) {
-                println!("Database exists on current path");
-                database = Some(create_switch_database(file_path.clone()));
-                break;
-            } else {
-                println!("Database does not exist on current path.\n");
-                println!("Creating a new database...");
-                database = Some(create_switch_database(file_path.clone()));
-                break;
-            }
+    if check_path(file_path) {
+        println!("Path is valid, validating database...");
+        if check_database(file_path) {
+            println!("Database exists on current path");
+            let new_path = (*file_path).clone();
+            database = Some(create_switch_database(new_path));
         } else {
-            println!("Path in .env file is invalid");
-            let exit = change_path();
-            if exit {
-                break;
-            }
+            println!("Database does not exist on current path.\n");
+            println!("Creating a new database...");
+            let new_path = (*file_path).clone();
+            database = Some(create_switch_database(new_path));
         }
+    } else {
+        println!("Path in .env file is invalid");
     }
 
     return database;
 }
 
-fn change_path() -> bool {
+fn change_path(databases: &mut HashMap<String, String>, input: &str) -> bool {
     let mut br = false;
+
     loop {
         println!("Enter a new path for database");
         println!("(1) Use current working directory");
@@ -163,17 +164,24 @@ fn change_path() -> bool {
                 let current_dir = env::current_dir().unwrap();
                 let absolute_path = current_dir.canonicalize().unwrap();
                 println!("Setting path to: {}", absolute_path.display());
-                env::set_var("DATABASE_PATH", absolute_path);
+                let absolute_path = absolute_path.as_os_str().to_str().unwrap().to_string();
+                databases.insert(input.to_string(), absolute_path.trim().to_string());
+                write_env(databases);
                 break;
             }
             "2" => {
                 println!("Enter path");
-                let mut input = String::new();
+                let mut new_path = String::new();
                 io::stdin()
-                    .read_line(&mut input)
+                    .read_line(&mut new_path)
                     .expect("Failed to read line");
-                env::set_var("DATABASE_PATH", input.trim());
-                break;
+                if check_path(&new_path.trim().to_string()) {
+                    databases.insert(input.to_string(), new_path.trim().to_string());
+                    write_env(databases);
+                    break;
+                } else {
+                    println!("Please enter a valid path");
+                }
             }
             "3" => {
                 br = true;
