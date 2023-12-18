@@ -1,42 +1,48 @@
 mod db;
 mod types;
 use std::collections::HashMap;
-use std::{io, env, io::Write};
 use std::fs::OpenOptions;
+use std::{env, io, io::Write};
 // use std::ops::Deref;
+use db::{check_database, check_path, find_databases, Database};
 use types::{Data, DataType, VectorData};
-use db::{Database, check_path, check_database, find_databases};
 mod vectoriser;
 
-fn main(){
+fn main() {
     println!("Welcome");
-    println!("Finding databases...");
 
     let mut databases = find_databases();
 
-    loop{
-        println!("Avaiable databases are...\n");
-        for (key,_) in databases.iter() {
-            println!("{}",key);
-        }
-
-        println!("\nView database (1)");
-        println!("Delete database (2)");
-        println!("Exit (0)");
+    loop {
+        println!("\n(1) Show databases");
+        println!("(2) Use database");
+        println!("(3) Delete database");
+        println!("(0) Exit");
 
         let mut select = String::new();
-        io::stdin().read_line(&mut select).expect("Failed to read line");
+        io::stdin()
+            .read_line(&mut select)
+            .expect("Failed to read line");
 
         match select.trim() {
             "1" => {
+                println!("\nAvaiable databases are...\n");
+                for (key, _) in databases.iter() {
+                    println!("{}", key);
+                }
+            }
+            "2" => {
                 println!("Enter name of database");
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).expect("Faile to read line");
+                io::stdin()
+                    .read_line(&mut input)
+                    .expect("Faile to read line");
 
-                if databases.contains_key(input.trim()){
-                    let database: Option<Database> = valid_database(databases.get(input.trim()).unwrap());
+                if databases.contains_key(input.trim()) {
+                    let database: Option<Database> =
+                        valid_database(databases.get(input.trim()).unwrap());
 
-                    if database.is_none(){
+                    if database.is_none() {
                         databases.remove(input.trim());
                         continue;
                     }
@@ -45,46 +51,54 @@ fn main(){
                     loop {
                         //delete needs to be implmented
 
-                        println!("{}",input.trim());
-                        println!("Insert in Database (1)");
-                        println!("View Database (2)");
-                        println!("Delete from Database (3)");
-                        println!("View current path (4)");
-                        println!("Switch database (5)");
+                        println!("{}", input.trim());
+                        println!("(1) Insert in Database");
+                        println!("(2) View Database");
+                        println!("(3) Get from Database");
+                        println!("(4) Delete from Database");
+                        println!("(5) View current path");
+                        println!("(6) Switch database");
 
                         let mut choice = String::new();
-                        io::stdin().read_line(&mut choice).expect("Failed to read line");
+                        io::stdin()
+                            .read_line(&mut choice)
+                            .expect("Failed to read line");
 
                         match choice.trim() {
-                            "1"=> {
+                            "1" => {
                                 insert_in_database(&database);
-                            },
-                            "2"=> {
+                            }
+                            "2" => {
                                 view_databases(&database);
-                            },
-                            "3"=> {
+                            }
+                            "3" => {
+                                get_from_database(&database);
+                            }
+                            "4" => {
                                 delete_from_database(&database);
-                            },
-                            "4"=> {
-                                Database::view_current_path(&database);
-                            },
+                            }
                             "5" => {
+                                Database::view_current_path(&database);
+                            }
+                            "6" => {
                                 break;
-                            },
+                            }
                             _ => println!("Invalid choice"),
                         }
                     }
                     write_env(&databases);
-                }
-                else{
+                } else {
                     println!("Invalid input");
                 }
-            },
-            "2" => {
+            }
+            "3" => {
+                println!("Enter the database name");
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).expect("Filed to read line");
+                io::stdin()
+                    .read_line(&mut input)
+                    .expect("Filed to read line");
 
-                if databases.contains_key(input.trim()){
+                if databases.contains_key(input.trim()) {
                     let exit = change_path();
                     if exit {
                         continue;
@@ -92,14 +106,13 @@ fn main(){
 
                     let database = valid_database(databases.get(input.trim()).unwrap()).unwrap();
                     delete_database(&database);
-                }
-                else{
+                } else {
                     println!("Invalid input");
                 }
-            },
+            }
             "0" => {
                 break;
-            },
+            }
             _ => {
                 println!("Invalid choice");
             }
@@ -109,22 +122,20 @@ fn main(){
 
 fn valid_database(file_path: &String) -> Option<Database> {
     let mut database: Option<Database> = None;
-    loop{
-        if check_path(file_path){
+    loop {
+        if check_path(file_path) {
             println!("Path is valid, validating database...");
-            if check_database(file_path){
+            if check_database(file_path) {
                 println!("Database exists on current path");
-                database =  Some(create_switch_database(file_path.clone()));
+                database = Some(create_switch_database(file_path.clone()));
                 break;
-            }
-            else {
+            } else {
                 println!("Database does not exist on current path.\n");
                 println!("Creating a new database...");
                 database = Some(create_switch_database(file_path.clone()));
                 break;
             }
-        }
-        else{
+        } else {
             println!("Path in .env file is invalid");
             let exit = change_path();
             if exit {
@@ -136,15 +147,17 @@ fn valid_database(file_path: &String) -> Option<Database> {
     return database;
 }
 
-fn change_path() -> bool{
+fn change_path() -> bool {
     let mut br = false;
-    loop{
+    loop {
         println!("Enter a new path for database");
-        println!("Use current working directory (1)");
-        println!("Enter custom path (2)");
-        println!("Remove database (3)");
+        println!("(1) Use current working directory");
+        println!("(2) Enter custom path");
+        println!("(3) Remove database");
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice).expect("Failed to read line");
+        io::stdin()
+            .read_line(&mut choice)
+            .expect("Failed to read line");
         match choice.trim() {
             "1" => {
                 let current_dir = env::current_dir().unwrap();
@@ -152,18 +165,20 @@ fn change_path() -> bool{
                 println!("Setting path to: {}", absolute_path.display());
                 env::set_var("DATABASE_PATH", absolute_path);
                 break;
-            },
+            }
             "2" => {
                 println!("Enter path");
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).expect("Failed to read line");
+                io::stdin()
+                    .read_line(&mut input)
+                    .expect("Failed to read line");
                 env::set_var("DATABASE_PATH", input.trim());
                 break;
-            },
+            }
             "3" => {
                 br = true;
                 break;
-            },
+            }
             _ => {
                 println!("Invalid input\n\n");
             }
@@ -172,9 +187,14 @@ fn change_path() -> bool{
     return br;
 }
 
-fn write_env(databases: &HashMap<String,String>){
+fn write_env(databases: &HashMap<String, String>) {
     let file_path = ".env";
-    let file = OpenOptions::new().write(true).truncate(true).create(true).open(file_path).unwrap();
+    let file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .open(file_path)
+        .unwrap();
 
     let mut buffered_file = io::BufWriter::new(file);
 
@@ -183,7 +203,7 @@ fn write_env(databases: &HashMap<String,String>){
 
     let mut count = 0;
 
-    for (key,value) in databases.iter() {
+    for (key, value) in databases.iter() {
         count += 1;
         let temp: String = count.to_string();
         let mut db_path_var = "DATABASE_PATH".to_string();
@@ -197,8 +217,8 @@ fn write_env(databases: &HashMap<String,String>){
     }
 }
 
-fn create_switch_database(addr: String) -> Database{
-    match Database::create_switch_database(addr){
+fn create_switch_database(addr: String) -> Database {
+    match Database::create_switch_database(addr) {
         Ok(database) => return database,
         Err(err) => panic!("Failed to create database as {:?}", err),
     };
@@ -215,35 +235,68 @@ fn delete_database(database: &Database) {
 }
 
 fn delete_from_database(database: &Database) {
-    println!("Enter data you want to delete (if it exists)");
-    println!("Enter data type (Text, Image, Audio, Blob): ");
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Failed to read line");
-    // match statement to match datatype from Datatype
-    let datatype = match input.trim() {
-        "Text" => DataType::Text,
-        "Image" => DataType::Image,
-        "Audio" => DataType::Audio,
-        "Blob" => DataType::Blob,
-        _ => {
-            panic!("Invalid data type");
+    println!("(1) Delete by entering data");
+    println!("(2) Delete by entering key");
+
+    let mut select = String::new();
+    io::stdin()
+        .read_line(&mut select)
+        .expect("Failed to read line");
+
+    match select.trim() {
+        "1" => {
+            println!("Enter data you want to delete (if it exists)");
+            println!("Enter data type (Text, Image, Audio, Blob): ");
+            let mut input = String::new();
+            io::stdin()
+                .read_line(&mut input)
+                .expect("Failed to read line");
+            // match statement to match datatype from Datatype
+            let datatype = match input.trim() {
+                "Text" => DataType::Text,
+                "Image" => DataType::Image,
+                "Audio" => DataType::Audio,
+                "Blob" => DataType::Blob,
+                _ => {
+                    panic!("Invalid data type");
+                }
+            };
+            println!("Enter payload: ");
+            let mut payload = String::new();
+            io::stdin()
+                .read_line(&mut payload)
+                .expect("Failed to read line");
+
+            let data = vectoriser::vectorize(Data {
+                vector: VectorData::default(),
+                payload: payload,
+                data_type: datatype,
+            });
+
+            println!("Deleting from database...");
+            database.delete_from_database(data);
         }
-    };
-    println!("Enter payload: ");
-    let mut payload = String::new();
-    io::stdin().read_line(&mut payload).expect("Failed to read line");
-
-    let data = vectoriser::vectorize(Data{vector: VectorData::default(), payload: payload, data_type: datatype});
-
-    println!("Deleting from database...");
-    database.delete_from_database(data);
+        "2" => {
+            println!("Enter key");
+            let mut input = String::new();
+            io::stdin()
+                .read_line(&mut input)
+                .expect("Failed to read line");
+            database.delete_from_database_with_key(input.trim());
+        }
+        _ => {
+            println!("Invalid choice");
+            return;
+        }
+    }
 }
 
 fn insert_in_database(database: &Database) {
-
     println!("Enter data type (Text, Image, Audio, Blob): ");
     let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Failed to read line");
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read line");
     // match statement to match datatype from Datatype
     let datatype = match input.trim() {
         "Text" => DataType::Text,
@@ -256,11 +309,25 @@ fn insert_in_database(database: &Database) {
     };
     println!("Enter payload: ");
     let mut payload = String::new();
-    io::stdin().read_line(&mut payload).expect("Failed to read line");
+    io::stdin()
+        .read_line(&mut payload)
+        .expect("Failed to read line");
 
-    let data = vectoriser::vectorize(Data{vector: VectorData::default(), payload: payload, data_type: datatype});
+    let data = vectoriser::vectorize(Data {
+        vector: VectorData::default(),
+        payload: payload,
+        data_type: datatype,
+    });
 
     println!("Inserting into a database...");
     database.insert_in_database(data);
+}
 
+fn get_from_database(database: &Database) {
+    println!("Enter key of data");
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read key");
+    database.get(input.trim());
 }
