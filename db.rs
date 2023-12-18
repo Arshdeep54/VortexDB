@@ -68,9 +68,9 @@ impl Database {
         let iter = database.db.iterator(IteratorMode::Start); //iterates from the start
         println!("\n\nIterating over database...");
         for item in iter {
-            let (_, value) = item.unwrap();
+            let (key, value) = item.unwrap();
             let vec = deserialize(&value);
-            println!("{:?}", vec);
+            println!("Key: {:x?}\nValue: {:?}", key, vec);
         }
         println!("\n");
     }
