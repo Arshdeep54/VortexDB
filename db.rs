@@ -68,9 +68,11 @@ impl Database {
         let iter = database.db.iterator(IteratorMode::Start); //iterates from the start
         println!("\n\nIterating over database...");
         for item in iter {
-            let (_, value) = item.unwrap();
+            let (key, value) = item.unwrap();
+            let hex_strings: Vec<String> = key.iter().map(|b| format!("{:02x}", b)).collect();
+            let result = hex_strings.join("");
             let vec = deserialize(&value);
-            println!("{:?}", vec);
+            println!("Key: {}\nValue: {:?}", result, vec);
         }
         println!("\n");
     }
