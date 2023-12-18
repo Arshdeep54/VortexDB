@@ -461,6 +461,7 @@ fn find_knn ( database: &Database) {
         println!("(1) Euclidean Distance");
         println!("(2) Manhattan Distance");
         println!("(3) Hamming Distance");
+        println!("(3) Cosine Similarity");
 
         let mut select = String::new();
         io::stdin()
