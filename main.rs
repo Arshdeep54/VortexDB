@@ -448,4 +448,35 @@ fn find_knn ( database: &Database) {
         }
     }
         
+    println!("Please Enter K Value");
+    
+    let mut kvalue = String::new();
+    io::stdin()
+        .read_line(&mut kvalue)
+        .expect("Failed to read line");
+    let kvalue: usize = kvalue.trim().parse().unwrap();
+    
+    loop {
+        println!("\nPlease Select method for KNN");
+        println!("(1) Euclidean Distance");
+
+        let mut select = String::new();
+        io::stdin()
+            .read_line(&mut select)
+            .expect("Failed to read line");
+        match select.trim() {
+            "1"=> {
+                println!("The k nearest values are");
+                let result = database.get_euclidean_knn(&givenvec , kvalue);
+                for r in &result {
+                    println!("{}",r);
+                }
+                println!();
+                break ;
+            }
+            _ => {
+                println!("Invalid choice");
+            }
+        }
+    }
 }
