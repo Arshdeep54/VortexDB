@@ -141,6 +141,162 @@ impl Database {
             }
         }
     }
+
+    pub fn get_data_from_key(&self, input: &str) -> Option<Data>{
+        match decode(input) {
+            Ok(bytes) => {
+                let key = bytes.into_boxed_slice();
+                match self.db.get(&key) {
+                    Ok(Some(value)) => {
+                        let vec = deserialize(&value);
+                        return Some(vec) ;
+                    }
+                    Ok(None) => { println!("Key does not exist"); return None; },
+                    Err(e) => { println!("Error getting key: {}", e); return None; },
+                }
+            }
+            Err(_) => {
+                println!("Invalid key");
+                return None;
+            }
+        }
+    }
+
+    pub fn get_euclidean_knn ( &self, input: &Vec<f32> , kvalue:usize ) -> Vec<String> {
+   	
+        let mut all_scores : Vec < ( f32 , String ) > = Vec::<(f32,String)>::new() ;
+        
+        let iter = self.db.iterator(IteratorMode::Start);
+ 
+         for item in iter {
+             let (_, value) = item.unwrap();
+             
+             let mut hasher = Sha256::new();
+             hasher.update(&value);
+             let key = format!("{:x}",hasher.finalize());
+ 
+             let vec = deserialize(&value).vector.vector;
+             let mut score : f32 = 0.0 ;
+             for i in 0..vec.len() {
+                 score += ( input[i] - vec[i] ) * ( input[i] - vec[i] ) ; 
+             }
+  
+             all_scores.push((score,key));
+         }
+         
+         all_scores.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        
+        let mut knn = Vec::<String>::new();
+        
+        for i in 0..std::cmp::min(kvalue,all_scores.len()) {
+            knn.push(all_scores[i].1.clone());
+        }
+        return knn ; 
+    }
+
+    pub fn get_manhattan_knn ( &self, input: &Vec<f32> , kvalue:usize ) -> Vec<String> {
+   	
+        let mut all_scores : Vec < ( f32 , String ) > = Vec::<(f32,String)>::new() ;
+        
+        let iter = self.db.iterator(IteratorMode::Start);
+ 
+         for item in iter {
+             let (_, value) = item.unwrap();
+             
+             let mut hasher = Sha256::new();
+             hasher.update(&value);
+             let key = format!("{:x}",hasher.finalize());
+ 
+             let vec = deserialize(&value).vector.vector;
+             let mut score : f32 = 0.0 ;
+             for i in 0..vec.len() {
+                 score += ( input[i] - vec[i] ).abs() ; 
+             }
+  
+             all_scores.push((score,key));
+         }
+         
+         all_scores.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        
+        let mut knn = Vec::<String>::new();
+        
+        for i in 0..std::cmp::min(kvalue,all_scores.len()) {
+            knn.push(all_scores[i].1.clone());
+        }
+        return knn ; 
+    }
+
+    pub fn get_hamming_knn ( &self, input: &Vec<f32> , kvalue:usize ) -> Vec<String> {
+   	
+        let mut all_scores : Vec < ( f32 , String ) > = Vec::<(f32,String)>::new() ;
+        
+        let iter = self.db.iterator(IteratorMode::Start);
+ 
+         for item in iter {
+             let (_, value) = item.unwrap();
+             
+             let mut hasher = Sha256::new();
+             hasher.update(&value);
+             let key = format!("{:x}",hasher.finalize());
+ 
+             let vec = deserialize(&value).vector.vector;
+             let mut score : f32 = 0.0 ;
+             for i in 0..vec.len() {
+                 if input[i] != vec[i] { 
+                     score += 1.0 ;
+                 } 
+             }
+  
+             all_scores.push((score,key));
+         }
+         
+         all_scores.sort_by(|a, b| a.partial_cmp(b).unwrap());
+         
+        let mut knn = Vec::<String>::new();
+        
+        for i in 0..std::cmp::min(kvalue,all_scores.len()) {
+            knn.push(all_scores[i].1.clone());
+        }
+        return knn ; 
+    }
+
+    pub fn get_cosine_knn ( &self, input: &Vec<f32> , kvalue:usize ) -> Vec<String> {
+   	
+        let mut all_scores : Vec < ( f32 , String ) > = Vec::<(f32,String)>::new() ;
+        
+        let iter = self.db.iterator(IteratorMode::Start);
+ 
+         for item in iter {
+             let (_, value) = item.unwrap();
+             
+             let mut hasher = Sha256::new();
+             hasher.update(&value);
+             let key = format!("{:x}",hasher.finalize());
+ 
+             let vec = deserialize(&value).vector.vector;
+             let mut a : f32 = 0.0 ;
+             let mut b : f32 = 0.0 ;
+             let mut c : f32 = 0.0 ;
+             for i in 0..vec.len() {
+                 a += input[i] * vec[i];
+                 b += input[i] * input[i];
+                 c += vec[i] * vec[i];
+             }
+          b = b.sqrt();
+          c = c.sqrt();
+             all_scores.push((a/(b*c),key));
+         }
+         
+         all_scores.sort_by(|a, b| a.partial_cmp(b).unwrap());
+         all_scores.reverse();
+        
+        let mut knn = Vec::<String>::new();
+        
+        for i in 0..std::cmp::min(kvalue,all_scores.len()) {
+            knn.push(all_scores[i].1.clone());
+        }
+        return knn ; 
+    }
 }
 
 pub fn check_path(file_path: &String) -> bool {
