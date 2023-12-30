@@ -1,145 +1,152 @@
 mod db;
 mod types;
+mod modules;
+
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::{env, io, io::Write};
 // use std::ops::Deref;
-use db::{check_database, check_path, find_databases, Database};
+use db::{check_database, check_path, Database};
 use types::{Data, DataType, VectorData};
+use modules::text2vec_transformers::vectorize;
 
 fn main() {
     println!("Welcome");
 
-    let mut databases = find_databases();
+    let input = "Hello, world!";
+    let pooling_strategy = "";
+    vectorize(input, pooling_strategy);
+    // println!("{:?}", result);
+    // let mut databases = find_databases();
 
-    loop {
-        println!("\n(1) Show databases");
-        println!("(2) Use database");
-        println!("(3) Add new database");
-        println!("(4) Delete database");
-        println!("(0) Exit");
+    // loop {
+    //     println!("\n(1) Show databases");
+    //     println!("(2) Use database");
+    //     println!("(3) Add new database");
+    //     println!("(4) Delete database");
+    //     println!("(0) Exit");
 
-        let mut select = String::new();
-        io::stdin()
-            .read_line(&mut select)
-            .expect("Failed to read line");
+    //     let mut select = String::new();
+    //     io::stdin()
+    //         .read_line(&mut select)
+    //         .expect("Failed to read line");
 
-        match select.trim() {
-            "1" => {
-                println!("\nAvaiable databases are...\n");
-                for (key, _) in databases.iter() {
-                    println!("{}", key);
-                }
-            }
-            "2" => {
-                println!("Enter name of database");
-                let mut input = String::new();
-                io::stdin()
-                    .read_line(&mut input)
-                    .expect("Faile to read line");
+    //     match select.trim() {
+    //         "1" => {
+    //             println!("\nAvaiable databases are...\n");
+    //             for (key, _) in databases.iter() {
+    //                 println!("{}", key);
+    //             }
+    //         }
+    //         "2" => {
+    //             println!("Enter name of database");
+    //             let mut input = String::new();
+    //             io::stdin()
+    //                 .read_line(&mut input)
+    //                 .expect("Faile to read line");
 
-                if databases.contains_key(input.trim()) {
-                    let mut database: Option<Database> =
-                        valid_database(&mut databases, input.trim());
+    //             if databases.contains_key(input.trim()) {
+    //                 let mut database: Option<Database> =
+    //                     valid_database(&mut databases, input.trim());
 
-                    if database.is_none() {
-                        let exit = change_path(&mut databases, input.trim());
-                        if exit {
-                            databases.remove(input.trim());
-                            continue;
-                        } else {
-                            database = valid_database(&mut databases, input.trim());
-                        }
-                    }
+    //                 if database.is_none() {
+    //                     let exit = change_path(&mut databases, input.trim());
+    //                     if exit {
+    //                         databases.remove(input.trim());
+    //                         continue;
+    //                     } else {
+    //                         database = valid_database(&mut databases, input.trim());
+    //                     }
+    //                 }
 
-                    let database: Database = database.unwrap();
-                    loop {
-                        println!("{}", input.trim());
-                        println!("(1) Insert in Database");
-                        println!("(2) View Database");
-                        println!("(3) Get from Database");
-                        println!("(4) Delete from Database");
-                        println!("(5) Find K Nearest Neighbours");
-                        println!("(6) View current path");
-                        println!("(7) Switch database");
+    //                 let database: Database = database.unwrap();
+    //                 loop {
+    //                     println!("{}", input.trim());
+    //                     println!("(1) Insert in Database");
+    //                     println!("(2) View Database");
+    //                     println!("(3) Get from Database");
+    //                     println!("(4) Delete from Database");
+    //                     println!("(5) Find K Nearest Neighbours");
+    //                     println!("(6) View current path");
+    //                     println!("(7) Switch database");
 
-                        let mut choice = String::new();
-                        io::stdin()
-                            .read_line(&mut choice)
-                            .expect("Failed to read line");
+    //                     let mut choice = String::new();
+    //                     io::stdin()
+    //                         .read_line(&mut choice)
+    //                         .expect("Failed to read line");
 
-                        match choice.trim() {
-                            "1" => {
-                                insert_in_database(&database);
-                            }
-                            "2" => {
-                                view_databases(&database);
-                            }
-                            "3" => {
-                                get_from_database(&database);
-                            }
-                            "4" => {
-                                delete_from_database(&database);
-                            }
-                            "5" =>{
-                            	find_knn(&database);
-                            }
-                            "6" => {
-                                Database::view_current_path(&database);
-                            }
-                            "7" => {
-                                break;
-                            }
-                            _ => println!("Invalid choice"),
-                        }
-                    }
-                    write_env(&databases);
-                } else {
-                    println!("Invalid input");
-                }
-            }
-            "3" => {
-                println!("Enter the databse name");
-                let mut name = String::new();
-                io::stdin()
-                    .read_line(&mut name)
-                    .expect("Failed to read line");
-                if databases.contains_key(name.trim()) {
-                    println!("This name already exists");
-                    continue;
-                }
-                if !change_path(&mut databases, name.trim()) {
-                    println!("Created database successfully");
-                }
-                continue;
-            }
-            "4" => {
-                println!("Enter the database name");
-                let mut input = String::new();
-                io::stdin()
-                    .read_line(&mut input)
-                    .expect("Filed to read line");
+    //                     match choice.trim() {
+    //                         "1" => {
+    //                             insert_in_database(&database);
+    //                         }
+    //                         "2" => {
+    //                             view_databases(&database);
+    //                         }
+    //                         "3" => {
+    //                             get_from_database(&database);
+    //                         }
+    //                         "4" => {
+    //                             delete_from_database(&database);
+    //                         }
+    //                         "5" =>{
+    //                         	find_knn(&database);
+    //                         }
+    //                         "6" => {
+    //                             Database::view_current_path(&database);
+    //                         }
+    //                         "7" => {
+    //                             break;
+    //                         }
+    //                         _ => println!("Invalid choice"),
+    //                     }
+    //                 }
+    //                 write_env(&databases);
+    //             } else {
+    //                 println!("Invalid input");
+    //             }
+    //         }
+    //         "3" => {
+    //             println!("Enter the databse name");
+    //             let mut name = String::new();
+    //             io::stdin()
+    //                 .read_line(&mut name)
+    //                 .expect("Failed to read line");
+    //             if databases.contains_key(name.trim()) {
+    //                 println!("This name already exists");
+    //                 continue;
+    //             }
+    //             if !change_path(&mut databases, name.trim()) {
+    //                 println!("Created database successfully");
+    //             }
+    //             continue;
+    //         }
+    //         "4" => {
+    //             println!("Enter the database name");
+    //             let mut input = String::new();
+    //             io::stdin()
+    //                 .read_line(&mut input)
+    //                 .expect("Filed to read line");
 
-                if databases.contains_key(input.trim()) {
-                    let exit = change_path(&mut databases, &input);
-                    if exit {
-                        continue;
-                    }
+    //             if databases.contains_key(input.trim()) {
+    //                 let exit = change_path(&mut databases, &input);
+    //                 if exit {
+    //                     continue;
+    //                 }
 
-                    let database = valid_database(&mut databases, input.trim()).unwrap();
-                    delete_database(&database);
-                } else {
-                    println!("Invalid input");
-                }
-            }
-            "0" => {
-                break;
-            }
-            _ => {
-                println!("Invalid choice");
-            }
-        };
-    }
+    //                 let database = valid_database(&mut databases, input.trim()).unwrap();
+    //                 delete_database(&database);
+    //             } else {
+    //                 println!("Invalid input");
+    //             }
+    //         }
+    //         "0" => {
+    //             break;
+    //         }
+    //         _ => {
+    //             println!("Invalid choice");
+    //         }
+    //     };
+    // }
 }
 
 fn valid_database(databases: &mut HashMap<String, String>, input: &str) -> Option<Database> {
