@@ -1,24 +1,22 @@
-use serde_derive::{Serialize,Deserialize};
-use serde::ser::{Serialize, SerializeStruct, Serializer};
+use serde_derive::{ Serialize, Deserialize };
+use serde::ser::{ Serialize, SerializeStruct, Serializer };
 use std::fmt;
-use serde::de::{self, Deserialize, Deserializer, Visitor, SeqAccess, MapAccess};
+use serde::de::{ self, Deserialize, Deserializer, Visitor, SeqAccess, MapAccess };
 
-#[derive(Debug,Default)]
+#[derive(Debug, Default)]
 pub struct VectorData {
     pub vector: Vec<f32>,
-    pub embedding_type: String
+    pub embedding_type: String,
 }
 
 impl VectorData {
-    fn new(vector: Vec<f32>, embedding_type: String) -> VectorData{
+    fn new(vector: Vec<f32>, embedding_type: String) -> VectorData {
         VectorData { vector: vector, embedding_type: embedding_type }
     }
 }
 
 impl Serialize for VectorData {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
         let mut state = serializer.serialize_struct("VectorData", 2)?;
         state.serialize_field("vector", &self.vector)?;
         state.serialize_field("embedding_type", &self.embedding_type)?;
@@ -26,28 +24,24 @@ impl Serialize for VectorData {
     }
 }
 
-impl<'de> Deserialize<'de> for VectorData{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>, 
-    {
-        enum Field{ Vector, EmbeddingType }
+impl<'de> Deserialize<'de> for VectorData {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+        enum Field {
+            Vector,
+            EmbeddingType,
+        }
         impl<'de> Deserialize<'de> for Field {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-                where
-                    D: Deserializer<'de> {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
                 struct FieldVisitor;
 
-                impl<'de> Visitor <'de> for FieldVisitor {
+                impl<'de> Visitor<'de> for FieldVisitor {
                     type Value = Field;
 
                     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                         formatter.write_str("`vector` or `embedding_type`")
                     }
 
-                    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-                        where
-                            E: de::Error, {
+                    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where E: de::Error {
                         match v {
                             "vector" => Ok(Field::Vector),
                             "embedding_type" => Ok(Field::EmbeddingType),
@@ -69,16 +63,20 @@ impl<'de> Deserialize<'de> for VectorData{
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-                where
-                    A: SeqAccess<'de>, {
-                let vector = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let embedding_type = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                Ok(VectorData::new(vector,embedding_type))
+                where A: SeqAccess<'de>
+            {
+                let vector = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let embedding_type = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                Ok(VectorData::new(vector, embedding_type))
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-                where
-                    A: MapAccess<'de>, {
+                where A: MapAccess<'de>
+            {
                 let mut vector = None;
                 let mut embedding_type = None;
                 while let Some(key) = map.next_key()? {
@@ -98,43 +96,42 @@ impl<'de> Deserialize<'de> for VectorData{
                     }
                 }
                 let vector = vector.ok_or_else(|| de::Error::missing_field("vector"))?;
-                let embedding_type = embedding_type.ok_or_else(|| de::Error::missing_field("embedding_types"))?;
+                let embedding_type = embedding_type.ok_or_else(||
+                    de::Error::missing_field("embedding_types")
+                )?;
                 Ok(VectorData::new(vector, embedding_type))
             }
         }
 
         const FIELDS: &'static [&'static str] = &["vector", "embedding_type"];
         deserializer.deserialize_struct("VectorData", FIELDS, VectorDataVisitor)
-
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Default, Debug, Serialize, Deserialize)]
-pub enum DataType{
+pub enum DataType {
     #[default]
     Text,
     Image,
     Audio,
-    Blob
+    Blob,
 }
 
 #[derive(Default, Debug)]
-pub struct Data{
+pub struct Data {
     pub vector: VectorData,
     pub payload: String,
-    pub data_type: DataType
+    pub data_type: DataType,
 }
 
-impl Data{
-    fn new(vector: VectorData, payload: String, data_type: DataType) -> Data{
+impl Data {
+    fn new(vector: VectorData, payload: String, data_type: DataType) -> Data {
         Data { vector: vector, payload: payload, data_type: data_type }
     }
 }
 
-impl Serialize for Data{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer {
+impl Serialize for Data {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
         let mut state = serializer.serialize_struct("Data", 3)?;
         state.serialize_field("vector", &self.vector)?;
         state.serialize_field("payload", &self.payload)?;
@@ -143,28 +140,25 @@ impl Serialize for Data{
     }
 }
 
-impl<'de> Deserialize<'de> for Data{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>, 
-    {
-        enum Field{ Vector, Payload, DataType }
+impl<'de> Deserialize<'de> for Data {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+        enum Field {
+            Vector,
+            Payload,
+            DataType,
+        }
         impl<'de> Deserialize<'de> for Field {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-                where
-                    D: Deserializer<'de> {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
                 struct FieldVisitor;
 
-                impl<'de> Visitor <'de> for FieldVisitor {
+                impl<'de> Visitor<'de> for FieldVisitor {
                     type Value = Field;
 
                     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                         formatter.write_str("`vector` or `payload` or `data_type`")
                     }
 
-                    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-                        where
-                            E: de::Error, {
+                    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where E: de::Error {
                         match v {
                             "vector" => Ok(Field::Vector),
                             "payload" => Ok(Field::Payload),
@@ -187,17 +181,23 @@ impl<'de> Deserialize<'de> for Data{
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-                where
-                    A: SeqAccess<'de>, {
-                let vector = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let payload = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                let data_type = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(2, &self))?;
-                Ok(Data::new(vector,payload,data_type))
+                where A: SeqAccess<'de>
+            {
+                let vector = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let payload = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let data_type = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                Ok(Data::new(vector, payload, data_type))
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-                where
-                    A: MapAccess<'de>, {
+                where A: MapAccess<'de>
+            {
                 let mut vector = None;
                 let mut payload = None;
                 let mut data_type = None;
@@ -232,7 +232,6 @@ impl<'de> Deserialize<'de> for Data{
 
         const FIELDS: &'static [&'static str] = &["vector", "payload", "data_type"];
         deserializer.deserialize_struct("VectorData", FIELDS, DataVisitor)
-
     }
 }
 
@@ -240,53 +239,53 @@ impl<'de> Deserialize<'de> for Data{
 #[cfg(test)]
 #[test]
 fn test_text() {
-    let vector = VectorData{
-        vector: vec![1.0,2.0,3.0],
-        embedding_type: String::from("text")
+    let vector = VectorData {
+        vector: vec![1.0, 2.0, 3.0],
+        embedding_type: String::from("text"),
     };
-    let data = Data{
+    let data = Data {
         vector: vector,
         payload: String::from("Hello"),
-        data_type: DataType::Text
+        data_type: DataType::Text,
     };
     assert_eq!(data.payload, "Hello");
 }
 #[test]
 fn test_image() {
-    let vector = VectorData{
-        vector: vec![1.0,2.0,3.0],
-        embedding_type: String::from("image")
+    let vector = VectorData {
+        vector: vec![1.0, 2.0, 3.0],
+        embedding_type: String::from("image"),
     };
-    let data = Data{
+    let data = Data {
         vector: vector,
         payload: String::from("Hello"),
-        data_type: DataType::Image
+        data_type: DataType::Image,
     };
     assert_eq!(data.payload, "Hello");
 }
 #[test]
 fn test_blob() {
-    let vector = VectorData{
-        vector: vec![1.0,2.0,3.0],
-        embedding_type: String::from("binary")
+    let vector = VectorData {
+        vector: vec![1.0, 2.0, 3.0],
+        embedding_type: String::from("binary"),
     };
-    let data = Data{
+    let data = Data {
         vector: vector,
         payload: String::from("Hello"),
-        data_type: DataType::Blob
+        data_type: DataType::Blob,
     };
     assert_eq!(data.payload, "Hello");
 }
 #[test]
 fn test_audio() {
-    let vector = VectorData{
-        vector: vec![1.0,2.0,3.0],
-        embedding_type: String::from("audio")
+    let vector = VectorData {
+        vector: vec![1.0, 2.0, 3.0],
+        embedding_type: String::from("audio"),
     };
-    let data = Data{
+    let data = Data {
         vector: vector,
         payload: String::from("Hello"),
-        data_type: DataType::Audio
+        data_type: DataType::Audio,
     };
     assert_eq!(data.payload, "Hello");
 }
