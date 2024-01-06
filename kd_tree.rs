@@ -3,7 +3,6 @@ use crate::types;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::cmp::Ordering::Less;
-use std::ops::Sub;
 
 use types::Data;
 
@@ -42,7 +41,7 @@ pub struct KDTree {
 
 impl KDTree {
     //create an empty tree function
-    pub fn new(dim: usize) -> KDTree {
+    pub fn new() -> KDTree {
         KDTree {
             _root: None,
             _internals: KDTreeInternals {
@@ -53,7 +52,7 @@ impl KDTree {
                 rebuild_counter: 0,
             },
             is_debug_run: true,
-            dim,
+            dim: 0,
         }
     }
 
@@ -136,7 +135,7 @@ impl KDTree {
     // update node
     pub fn update_node() {}
 
-    // delete a node
+    // delete a node ** 
     pub fn delete_node() {}
 
     // print data for debug

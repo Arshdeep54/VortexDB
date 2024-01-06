@@ -9,7 +9,7 @@ use std::{env, io};
 // use std::ops::Deref;
 use db::{deserialize, Database};
 use dbpath::{check_database, check_path, find_databases, write_env};
-use indexing::{get_cosine_knn, get_euclidean_knn, get_hamming_knn, get_manhattan_knn};
+use indexing::{get_knn, KNNType};
 use types::{Data, DataType, VectorData};
 
 use rocksdb::IteratorMode;
@@ -89,7 +89,7 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         }
     }
 
-    let database: &Database = &database.unwrap();
+    let mut database = &database.unwrap();
     loop {
         println!("{}", input.trim());
         println!("(1) Insert in Database");
@@ -489,28 +489,28 @@ fn find_knn(database: &Database) {
             .expect("Failed to read line");
         match choice.trim() {
             "1" => {
-                let result = get_euclidean_knn(database, &givenvec, kvalue);
+                let result = get_knn(database, &givenvec, kvalue, KNNType::Euclidean);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "2" => {
-                let result = get_manhattan_knn(database, &givenvec, kvalue);
+                let result = get_knn(database, &givenvec, kvalue, KNNType::Manhattan);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "3" => {
-                let result = get_hamming_knn(database, &givenvec, kvalue);
+                let result = get_knn(database, &givenvec, kvalue, KNNType::Hamming);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "4" => {
-                let result = get_cosine_knn(database, &givenvec, kvalue);
+                let result = get_knn(database, &givenvec, kvalue, KNNType::Cosine);
                 for r in &result {
                     println!("{}", r);
                 }
