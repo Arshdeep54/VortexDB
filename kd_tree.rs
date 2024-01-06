@@ -1,15 +1,13 @@
 use crate::types;
 
-use rand::prelude::*;
+use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::cmp::Ordering::Less;
 use std::ops::Sub;
-use std::time::Instant;
 
-use std::mem;
 use types::Data;
 
-struct KDTreeInternals {
+pub struct KDTreeInternals {
     pub kd_tree_allow_update: bool,
     pub current_number_of_kd_tree_nodes: usize,
     pub rebuild_threshold: f32,
@@ -17,25 +15,25 @@ struct KDTreeInternals {
     pub rebuild_counter: usize,
 }
 
-struct KDTreeNode {
+pub struct KDTreeNode {
     pub left: Option<Box<KDTreeNode>>,
     pub right: Option<Box<KDTreeNode>>,
-    pub distance_to_neighbor: f32,
     pub dataset: Data,
+    pub dim: usize,
 }
 
 impl KDTreeNode {
-    fn new(data: Data) -> KDTreeNode {
+    fn new(data: Data, dim: usize) -> KDTreeNode {
         KDTreeNode {
             left: None,
             right: None,
-            distance_to_neighbor: 0.0,
             dataset: data,
+            dim,
         }
     }
 }
 
-struct KDTree {
+pub struct KDTree {
     pub _root: Option<Box<KDTreeNode>>,
     pub _internals: KDTreeInternals,
     pub is_debug_run: bool,
@@ -63,7 +61,7 @@ impl KDTree {
     pub fn add_node(&mut self, data: Data, depth: usize) {
         assert_eq!(self.dim, data.vector.vector.len());
         if self._root.is_none() {
-            self._root = Some(Box::new(KDTreeNode::new(data)));
+            self._root = Some(Box::new(KDTreeNode::new(data, 0)));
             return;
         }
         if self._internals.kd_tree_allow_update {
@@ -92,7 +90,7 @@ impl KDTree {
                 < current_node.dataset.vector.vector[current_dimension]
             {
                 if current_node.left.is_none() {
-                    current_node.left = Some(Box::new(KDTreeNode::new(data)));
+                    current_node.left = Some(Box::new(KDTreeNode::new(data, current_dimension)));
                     break;
                 } else {
                     current_node = current_node.left.as_deref_mut().unwrap();
@@ -100,7 +98,7 @@ impl KDTree {
                 }
             } else {
                 if current_node.right.is_none() {
-                    current_node.right = Some(Box::new(KDTreeNode::new(data)));
+                    current_node.right = Some(Box::new(KDTreeNode::new(data, current_dimension)));
                     break;
                 } else {
                     current_node = current_node.right.as_deref_mut().unwrap();
@@ -109,32 +107,56 @@ impl KDTree {
             }
         }
     }
+
     // rebuild tree
-    fn rebuild(&self) {
-        //stop update
-        //iterate over tree to create a box of Data, send that to rebuild function, return value becomes root
-        //allow update
-        //rebuild counter and print if debug
+    fn rebuild(&mut self) {
+        self._internals.kd_tree_allow_update = false;
+        self._internals.rebuild_counter += 1;
+        if self.is_debug_run {
+            println!(
+                "Rebuilding tree..., Rebuild counter: {:?}",
+                self._internals.rebuild_counter
+            );
+        }
+        let mut points = Vec::into_boxed_slice(self.traversal());
+        self._root = Some(Box::new(create_tree_helper(points.as_mut(), 0)));
+        self._internals.kd_tree_allow_update = true;
     }
 
     // traversal
-    fn traversal(&self) -> &mut Box<Data>{
-        
+    fn traversal(&self) -> Vec<Data> {
+        let mut result: Vec<Data> = Vec::new();
+        inorder_traversal_helper(self._root.as_deref(), &mut result);
+        result
     }
+
+    // find a node
+    fn find_node() {}
 
     // update node
     pub fn update_node() {}
-    // find a node
-    fn find_node() {}
+
     // delete a node
     pub fn delete_node() {}
+
     // print data for debug
     pub fn print_tree_for_debug() {}
+
     // different methods of knn
 }
 
-// Functions for finding medians
-fn kth_smallest() {}
+// Traversal helper function
+fn inorder_traversal_helper(node: Option<&KDTreeNode>, result: &mut Vec<Data>) -> Option<bool> {
+    if node.is_none() {
+        return None;
+    }
+    let current_node = node.unwrap();
+    inorder_traversal_helper(current_node.to_owned().left.as_deref(), result);
+    result.push(current_node.dataset.clone());
+    inorder_traversal_helper(current_node.to_owned().right.as_deref(), result);
+
+    Some(true)
+}
 
 // Rebuild tree helper functions
 fn create_tree_helper(points: &mut [Data], dim: usize) -> KDTreeNode {
@@ -144,7 +166,7 @@ fn create_tree_helper(points: &mut [Data], dim: usize) -> KDTreeNode {
             dataset: points[0].clone(),
             left: None,
             right: None,
-            distance_to_neighbor: 0.0,
+            dim,
         };
     }
 
@@ -172,7 +194,7 @@ fn create_tree_helper(points: &mut [Data], dim: usize) -> KDTreeNode {
         dataset: pivot,
         left,
         right,
-        distance_to_neighbor: 0.0,
+        dim,
     }
 }
 

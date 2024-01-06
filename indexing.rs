@@ -1,5 +1,5 @@
 use crate::db;
-use db::{ Database, deserialize };
+use db::{deserialize, Database};
 
 use rocksdb::IteratorMode;
 

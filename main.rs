@@ -1,7 +1,6 @@
-mod db;
-mod types;
 mod cli;
 mod indexing;
+mod types;
 mod dbpath;
 mod vectoriser;
 

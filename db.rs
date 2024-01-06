@@ -1,6 +1,7 @@
 //For rocks-db
 use super::types::Data;
-use hex::{ decode, FromHexError as hexerr };
+use crate::kd_tree::KDTree;
+use hex::{decode, FromHexError as hexerr};
 use rocksdb::{
     DBWithThreadMode,
     Error as err,
@@ -10,16 +11,15 @@ use rocksdb::{
     SingleThreaded,
     DB,
 };
-use sha2::{ Digest, Sha256 };
+use sha2::{Digest, Sha256};
 
 pub struct Database {
     pub db: DBWithThreadMode<SingleThreaded>,
     pub path: String,
+    pub tree: Option<KDTree>,
 }
 
 impl Database {
-    //error correction in all cases
-
     pub fn create_switch_database(addr: String) -> Result<Database, err> {
         let mut options = Options::default();
 
@@ -34,6 +34,7 @@ impl Database {
         let database = Database {
             db: DB::open(&options, &addr).unwrap(),
             path: addr,
+            tree: None,
         };
         return Ok(database);
     }
@@ -79,11 +80,10 @@ impl Database {
         let key = hasher.finalize();
 
         match self.db.get(&key) {
-            Ok(Some(_)) =>
-                match self.db.delete(key) {
-                    Ok(_) => Ok(Some(())),
-                    Err(e) => Err(e),
-                }
+            Ok(Some(_)) => match self.db.delete(key) {
+                Ok(_) => Ok(Some(())),
+                Err(e) => Err(e),
+            },
             Ok(None) => Ok(None),
             Err(e) => Err(e),
         }
@@ -91,17 +91,16 @@ impl Database {
 
     pub fn delete_from_database_with_key(
         &self,
-        input: &str
+        input: &str,
     ) -> Result<Result<Option<()>, err>, hexerr> {
         match decode(input) {
             Ok(bytes) => {
                 let key = bytes.into_boxed_slice();
                 match self.db.get(&key) {
-                    Ok(Some(_)) =>
-                        match self.db.delete(key) {
-                            Ok(_) => Ok(Ok(Some(()))),
-                            Err(e) => Ok(Err(e)),
-                        }
+                    Ok(Some(_)) => match self.db.delete(key) {
+                        Ok(_) => Ok(Ok(Some(()))),
+                        Err(e) => Ok(Err(e)),
+                    },
                     Ok(None) => Ok(Ok(None)),
                     Err(e) => Ok(Err(e)),
                 }
