@@ -1,0 +1,211 @@
+use crate::types;
+
+use rand::prelude::*;
+use std::cmp::Ordering;
+use std::cmp::Ordering::Less;
+use std::ops::Sub;
+use std::time::Instant;
+
+use std::mem;
+use types::Data;
+
+struct KDTreeInternals {
+    pub kd_tree_allow_update: bool,
+    pub current_number_of_kd_tree_nodes: usize,
+    pub rebuild_threshold: f32,
+    pub previous_tree_size: usize,
+    pub rebuild_counter: usize,
+}
+
+struct KDTreeNode {
+    pub left: Option<Box<KDTreeNode>>,
+    pub right: Option<Box<KDTreeNode>>,
+    pub distance_to_neighbor: f32,
+    pub dataset: Data,
+}
+
+impl KDTreeNode {
+    fn new(data: Data) -> KDTreeNode {
+        KDTreeNode {
+            left: None,
+            right: None,
+            distance_to_neighbor: 0.0,
+            dataset: data,
+        }
+    }
+}
+
+struct KDTree {
+    pub _root: Option<Box<KDTreeNode>>,
+    pub _internals: KDTreeInternals,
+    pub is_debug_run: bool,
+    pub dim: usize,
+}
+
+impl KDTree {
+    //create an empty tree function
+    pub fn new(dim: usize) -> KDTree {
+        KDTree {
+            _root: None,
+            _internals: KDTreeInternals {
+                kd_tree_allow_update: true,
+                current_number_of_kd_tree_nodes: 0,
+                rebuild_threshold: 2.0f32,
+                previous_tree_size: 0,
+                rebuild_counter: 0,
+            },
+            is_debug_run: true,
+            dim,
+        }
+    }
+
+    // add a node
+    pub fn add_node(&mut self, data: Data, depth: usize) {
+        assert_eq!(self.dim, data.vector.vector.len());
+        if self._root.is_none() {
+            self._root = Some(Box::new(KDTreeNode::new(data)));
+            return;
+        }
+        if self._internals.kd_tree_allow_update {
+            println!("KDTree is locked for rebuild");
+            return;
+        }
+        if self._internals.previous_tree_size != 0 {
+            let current_ratio: f32 = self._internals.current_number_of_kd_tree_nodes as f32
+                / self._internals.previous_tree_size as f32;
+            if current_ratio > self._internals.rebuild_threshold {
+                self._internals.previous_tree_size =
+                    self._internals.current_number_of_kd_tree_nodes;
+                self.rebuild();
+            }
+        } else {
+            self._internals.previous_tree_size = self._internals.current_number_of_kd_tree_nodes;
+        }
+
+        self._internals.current_number_of_kd_tree_nodes += 1;
+
+        let mut current_node = self._root.as_deref_mut().unwrap();
+        let mut current_depth = depth;
+        loop {
+            let current_dimension = current_depth % self.dim;
+            if data.vector.vector[current_dimension]
+                < current_node.dataset.vector.vector[current_dimension]
+            {
+                if current_node.left.is_none() {
+                    current_node.left = Some(Box::new(KDTreeNode::new(data)));
+                    break;
+                } else {
+                    current_node = current_node.left.as_deref_mut().unwrap();
+                    current_depth += 1;
+                }
+            } else {
+                if current_node.right.is_none() {
+                    current_node.right = Some(Box::new(KDTreeNode::new(data)));
+                    break;
+                } else {
+                    current_node = current_node.right.as_deref_mut().unwrap();
+                    current_depth += 1;
+                }
+            }
+        }
+    }
+    // rebuild tree
+    fn rebuild(&self) {
+        //stop update
+        //iterate over tree to create a box of Data, send that to rebuild function, return value becomes root
+        //allow update
+        //rebuild counter and print if debug
+    }
+
+    // traversal
+    fn traversal(&self) -> &mut Box<Data>{
+        
+    }
+
+    // update node
+    pub fn update_node() {}
+    // find a node
+    fn find_node() {}
+    // delete a node
+    pub fn delete_node() {}
+    // print data for debug
+    pub fn print_tree_for_debug() {}
+    // different methods of knn
+}
+
+// Functions for finding medians
+fn kth_smallest() {}
+
+// Rebuild tree helper functions
+fn create_tree_helper(points: &mut [Data], dim: usize) -> KDTreeNode {
+    let points_len = points.len();
+    if points_len == 1 {
+        return KDTreeNode {
+            dataset: points[0].clone(),
+            left: None,
+            right: None,
+            distance_to_neighbor: 0.0,
+        };
+    }
+
+    // Split around the median
+    let pivot = quickselect_by(points, points_len / 2, &|a, b| {
+        a.vector.vector[dim]
+            .partial_cmp(&b.vector.vector[dim])
+            .unwrap()
+    });
+
+    let left = Some(Box::new(create_tree_helper(
+        &mut points[0..points_len / 2],
+        (dim + 1) % pivot.vector.vector.len(),
+    )));
+    let right = if points.len() >= 3 {
+        Some(Box::new(create_tree_helper(
+            &mut points[points_len / 2 + 1..points_len],
+            (dim + 1) % pivot.vector.vector.len(),
+        )))
+    } else {
+        None
+    };
+
+    KDTreeNode {
+        dataset: pivot,
+        left,
+        right,
+        distance_to_neighbor: 0.0,
+    }
+}
+
+fn quickselect_by<T>(arr: &mut [T], position: usize, cmp: &dyn Fn(&T, &T) -> Ordering) -> T
+where
+    T: Clone,
+{
+    let mut pivot_index = 0;
+    // Need to wrap in another closure or we get ownership complaints.
+    // Tried using an unboxed closure to get around this but couldn't get it to work.
+    pivot_index = partition_by(arr, pivot_index, &|a: &T, b: &T| cmp(a, b));
+    let array_len = arr.len();
+    match position.cmp(&pivot_index) {
+        Ordering::Equal => arr[position].clone(),
+        Ordering::Less => quickselect_by(&mut arr[0..pivot_index], position, cmp),
+        Ordering::Greater => quickselect_by(
+            &mut arr[pivot_index + 1..array_len],
+            position - pivot_index - 1,
+            cmp,
+        ),
+    }
+}
+
+fn partition_by<T>(arr: &mut [T], pivot_index: usize, cmp: &dyn Fn(&T, &T) -> Ordering) -> usize {
+    let array_len = arr.len();
+    arr.swap(pivot_index, array_len - 1);
+    let mut store_index = 0;
+    for i in 0..array_len - 1 {
+        if cmp(&arr[i], &arr[array_len - 1]) == Less {
+            arr.swap(i, store_index);
+            store_index += 1;
+        }
+    }
+    arr.swap(array_len - 1, store_index);
+    store_index
+}
