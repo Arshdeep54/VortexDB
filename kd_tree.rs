@@ -1,6 +1,5 @@
 use crate::types;
 
-use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::cmp::Ordering::Less;
 
@@ -135,7 +134,7 @@ impl KDTree {
     // update node
     pub fn update_node() {}
 
-    // delete a node ** 
+    // delete a node **
     pub fn delete_node() {}
 
     // print data for debug

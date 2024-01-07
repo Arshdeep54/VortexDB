@@ -89,7 +89,7 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         }
     }
 
-    let mut database = &database.unwrap();
+    let database = &database.unwrap();
     loop {
         println!("{}", input.trim());
         println!("(1) Insert in Database");
