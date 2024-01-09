@@ -1,7 +1,6 @@
-use reqwest::{Client, Response};
+use reqwest::blocking::{Client, Response};
 use std::collections::HashMap;
 use std::fmt;
-use std::error::Error;
 use serde_derive::Serialize;
 
 pub struct VectorizationResult {
@@ -28,19 +27,21 @@ impl fmt::Debug for VectorizationResult {
     }
 }
 
-pub async fn vectorize(input: &str, pooling_strategy: &str) {
+pub async fn vectorize(input: &str, pooling_strategy: &str) -> Result<Response, reqwest::Error>{
     let client = Client::new();
     let mut json_data = HashMap::new();
     json_data.insert("text", input);
     json_data.insert("pooling_strategy", pooling_strategy);
     let response = client
-        .post("http://localhost:8000/vectors")
+        .post("http://localhost:8000/vectors
+        ")
         .json(&VectorizationRequest {
             input: input.to_string(),
             pooling_strategy: pooling_strategy.to_string(),
         })
-        .send()
-        .await;
-
-    println!("{:?}", response)
+        .send();
+    match response{
+        Ok(response) => Ok(response),
+        Err(e) => panic!("Error: {}", e),
+    }
 }

@@ -4,18 +4,40 @@ mod modules;
 
 use std::collections::HashMap;
 use std::fs::OpenOptions;
+// use std::vec;
 use std::{env, io, io::Write};
 // use std::ops::Deref;
 use db::{check_database, check_path, Database};
 use types::{Data, DataType, VectorData};
-use modules::text2vec_transformers::vectorize;
+// use modules::text2vec_transformers::vectorize;
+use reqwest::blocking::Client;
+use serde_derive::Serialize;
+
+#[derive(Serialize)]
+struct VectorizationRequest {
+    text: String,
+    pooling_strategy: String,
+}
 
 fn main() {
     println!("Welcome");
 
     let input = "Hello, world!";
     let pooling_strategy = "";
-    vectorize(input, pooling_strategy);
+    let client = Client::new();
+    let mut json_data = HashMap::new();
+    json_data.insert("text", input);
+    json_data.insert("pooling_strategy", pooling_strategy);
+    let response = client
+        .post("http://localhost:8000/vectors
+        ")
+        .json(&VectorizationRequest {
+            text: input.to_string(),
+            pooling_strategy: pooling_strategy.to_string(),
+        })
+        .send();
+    println!("{:?}", response.unwrap().text());
+    // println!("Using text2vec vectorize: {}", vectorize(input, pooling_strategy).unwrap().text());
     // println!("{:?}", result);
     // let mut databases = find_databases();
 
