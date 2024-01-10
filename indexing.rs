@@ -2,6 +2,8 @@ use crate::db::{deserialize, Database};
 use crate::kd_tree::{KDTree, KDTreeNode};
 use crate::types::{Data, DataType, VectorData};
 use core::f32;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 
 use rocksdb::IteratorMode;
 
@@ -11,6 +13,35 @@ pub enum KNNType {
     Manhattan,
     Hamming,
     Cosine,
+}
+
+struct DataHeap {
+    data: Box<Data>,
+    distance: f32,
+}
+
+impl Eq for DataHeap {}
+impl Ord for DataHeap {
+    fn cmp(&self, other: &DataHeap) -> Ordering {
+        if self.distance < other.distance {
+            Ordering::Less
+        } else if self.distance > other.distance {
+            Ordering::Greater
+        } else {
+            Ordering::Equal
+        }
+    }
+}
+impl PartialEq for DataHeap {
+    fn eq(&self, other: &Self) -> bool {
+        self.distance == other.distance
+    }
+}
+
+impl PartialOrd for DataHeap {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Data {
@@ -122,41 +153,40 @@ impl KDTreeNode {
         &'a self,
         point: &Data,
         knn_type: KNNType,
+        k_value: usize,
     ) -> (&'a Data, usize) {
-        self.find_nearest_neighbor_helper(
-            point,
-            &self.dataset,
-            self.dataset.distance(point, knn_type),
-            1,
-            knn_type,
-        )
+        let mut heap: BinaryHeap<DataHeap> = BinaryHeap::new();
+        heap.push(DataHeap {
+            data: Box::new(self.dataset),
+            distance: self.dataset.distance(point, knn_type),
+        });
+        self.find_nearest_neighbor_helper(point, 1, knn_type, &heap, k_value)
     }
 
     fn find_nearest_neighbor_helper<'a>(
         &'a self,
         point: &Data,
-        best: &'a Data,
-        best_dist: f32,
         n_visited: usize,
         knn_type: KNNType,
+        distances: &BinaryHeap<DataHeap>,
+        k_value: usize,
     ) -> (&'a Data, usize) {
-        let mut my_best = best;
-        let mut my_best_dist = best_dist;
+        if distances.is_empty() {
+            panic!("Empty heap entered!");
+        }
+
+        let mut my_best = distances.peek().unwrap().data;
+        let mut my_best_dist = distances.peek().unwrap().distance;
         let mut my_n_visited = n_visited;
+        let mut my_distances = distances;
+
+        if my_distances.len() < k_value {
+            
+        }
 
         if self.dataset.vector.vector[self.dim] < point.vector.vector[self.dim]
             && self.right.is_some()
         {
-            let (a, b) = self.right.as_ref().unwrap().find_nearest_neighbor_helper(
-                point,
-                my_best,
-                my_best_dist,
-                my_n_visited,
-                knn_type,
-            );
-            my_best = a;
-            my_n_visited = b;
-        } else if self.left.is_some() {
             let (a, b) = self.left.as_ref().unwrap().find_nearest_neighbor_helper(
                 point,
                 my_best,
@@ -211,9 +241,14 @@ impl KDTreeNode {
 
         (my_best, my_n_visited)
     }
+
+    fn test_fn() {
+        let mut heap: BinaryHeap<DataHeap> = BinaryHeap::new();
+    }
 }
 
 //check everything works
-//work on debug print
 //work on remaining functions
 //integrate them all
+
+//add a binary heap to the knn helper function, fill in the heap till its of k size, then check for the maximum value of k like
