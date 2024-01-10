@@ -11,7 +11,7 @@ pub struct VectorizationResult {
 
 #[derive(Serialize)]
 struct VectorizationRequest {
-    input: String,
+    text: String,
     pooling_strategy: String,
 }
 
@@ -27,7 +27,7 @@ impl fmt::Debug for VectorizationResult {
     }
 }
 
-pub async fn vectorize(input: &str, pooling_strategy: &str) -> Result<Response, reqwest::Error>{
+pub fn vectorize(input: &str, pooling_strategy: &str) -> Result<Response, reqwest::Error>{
     let client = Client::new();
     let mut json_data = HashMap::new();
     json_data.insert("text", input);
@@ -36,12 +36,9 @@ pub async fn vectorize(input: &str, pooling_strategy: &str) -> Result<Response, 
         .post("http://localhost:8000/vectors
         ")
         .json(&VectorizationRequest {
-            input: input.to_string(),
+            text: input.to_string(),
             pooling_strategy: pooling_strategy.to_string(),
         })
         .send();
-    match response{
-        Ok(response) => Ok(response),
-        Err(e) => panic!("Error: {}", e),
-    }
+    response
 }
