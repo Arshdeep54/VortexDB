@@ -116,15 +116,15 @@ impl KDTree {
                 self._internals.rebuild_counter
             );
         }
-        let mut points = Vec::into_boxed_slice(self.traversal());
+        let mut points = Vec::into_boxed_slice(self.traversal(0));
         self._root = Some(Box::new(create_tree_helper(points.as_mut(), 0)));
         self._internals.kd_tree_allow_update = true;
     }
 
     // traversal
-    fn traversal(&self) -> Vec<Data> {
+    pub fn traversal(&self, k_value: usize) -> Vec<Data> {
         let mut result: Vec<Data> = Vec::new();
-        inorder_traversal_helper(self._root.as_deref(), &mut result);
+        inorder_traversal_helper(self._root.as_deref(), &mut result, k_value);
         result
     }
 
@@ -144,14 +144,21 @@ impl KDTree {
 }
 
 // Traversal helper function
-fn inorder_traversal_helper(node: Option<&KDTreeNode>, result: &mut Vec<Data>) -> Option<bool> {
+fn inorder_traversal_helper(
+    node: Option<&KDTreeNode>,
+    result: &mut Vec<Data>,
+    k_value: usize,
+) -> Option<bool> {
     if node.is_none() {
         return None;
     }
+    if k_value != 0 && k_value <= result.len() {
+        return None;
+    }
     let current_node = node.unwrap();
-    inorder_traversal_helper(current_node.to_owned().left.as_deref(), result);
+    inorder_traversal_helper(current_node.to_owned().left.as_deref(), result, k_value);
     result.push(current_node.dataset.clone());
-    inorder_traversal_helper(current_node.to_owned().right.as_deref(), result);
+    inorder_traversal_helper(current_node.to_owned().right.as_deref(), result, k_value);
 
     Some(true)
 }

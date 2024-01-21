@@ -4,6 +4,7 @@ use crate::types::{Data, DataType, VectorData};
 use core::f32;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use std::fmt::format;
 
 use rocksdb::IteratorMode;
 
@@ -20,6 +21,7 @@ struct DataHeap {
     distance: f32,
 }
 
+// These traits must be implemented for a custom BinaryHeap
 impl Eq for DataHeap {}
 impl Ord for DataHeap {
     fn cmp(&self, other: &DataHeap) -> Ordering {
@@ -37,7 +39,6 @@ impl PartialEq for DataHeap {
         self.distance == other.distance
     }
 }
-
 impl PartialOrd for DataHeap {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -133,33 +134,46 @@ pub fn get_knn(
         payload: "Input Vector".to_string(),
     };
 
+    //Finding the first k elements to insert into the BinaryHeap
+    let mut k_nodes = tree.traversal(kvalue);
+    let mut insert_heap: BinaryHeap<DataHeap> = BinaryHeap::new();
+    for node in k_nodes {
+        insert_heap.push(DataHeap {
+            data: Box::new(node),
+            distance: node.distance(&input_data, knn_type),
+        })
+    }
+
     let binding = tree._root.unwrap();
-    let (point, n_visited) = binding
-        .as_ref()
-        .find_nearest_neighbor(&input_data, knn_type);
+    let (heap, n_visited) =
+        binding.find_nearest_neighbors(&input_data, knn_type, kvalue, insert_heap);
 
     let mut ret_vec: Vec<String> = Vec::new();
-    ret_vec.push(format!("Nearest Neighbor: {:?}", point));
-    ret_vec.push(format!(
-        "Distance: {}",
-        binding.as_ref().dataset.distance(&point, knn_type)
-    ));
-    ret_vec.push(format!("Nodes visited: {}", n_visited));
+    let mut i = 1;
+    ret_vec.push(format!("Visited {} nodes", n_visited));
+    for point in heap {
+        ret_vec.push(format!("{}. Point: {:?}", i, point.data));
+        ret_vec.push(format!("   Distance: {}", point.distance));
+    }
     return ret_vec;
 }
 
 impl KDTreeNode {
-    pub fn find_nearest_neighbor<'a>(
+    pub fn find_nearest_neighbors<'a>(
         &'a self,
         point: &Data,
         knn_type: KNNType,
         k_value: usize,
-    ) -> (&'a Data, usize) {
+        heap: BinaryHeap<DataHeap>,
+    ) -> (&'a BinaryHeap<DataHeap>, usize) {
         let mut heap: BinaryHeap<DataHeap> = BinaryHeap::new();
         heap.push(DataHeap {
             data: Box::new(self.dataset),
             distance: self.dataset.distance(point, knn_type),
         });
+
+        // First create a binary heap of size k then push that to find nearest neighbor function
+
         self.find_nearest_neighbor_helper(point, 1, knn_type, &heap, k_value)
     }
 
@@ -175,39 +189,35 @@ impl KDTreeNode {
             panic!("Empty heap entered!");
         }
 
-        let mut my_best = distances.peek().unwrap().data;
-        let mut my_best_dist = distances.peek().unwrap().distance;
+        let mut my_worst: &Data = &distances.peek().unwrap().data;
+        let mut my_worst_dist = distances.peek().unwrap().distance;
         let mut my_n_visited = n_visited;
         let mut my_distances = distances;
-
-        if my_distances.len() < k_value {
-            
-        }
 
         if self.dataset.vector.vector[self.dim] < point.vector.vector[self.dim]
             && self.right.is_some()
         {
-            let (a, b) = self.left.as_ref().unwrap().find_nearest_neighbor_helper(
+            let (a, b) = &self.left.unwrap().find_nearest_neighbor_helper(
                 point,
-                my_best,
+                my_,
                 my_best_dist,
                 my_n_visited,
                 knn_type,
             );
-            my_best = a;
+            my_worst = a;
             my_n_visited = b;
         }
 
         // distance along this node's axis
         let axis_dist = self.dataset.distance(point, knn_type);
-        if axis_dist <= my_best_dist {
-            // self can only be nearer than best if axis_dist is less than
-            // best_dist because axis_dist is a lower bound for
+        if axis_dist <= my_worst_dist {
+            // self can only be nearer than worst if axis_dist is less than
+            // worst_dist because axis_dist is a lower bound for
             // self_dist
             let self_dist = self.dataset.distance(point, knn_type.clone());
-            if self_dist < my_best_dist {
-                my_best = &self.dataset;
-                my_best_dist = self_dist;
+            if self_dist < my_worst_dist {
+                my_worst = &self.dataset;
+                my_worst_dist = self_dist;
             }
 
             // bookkeeping
@@ -252,3 +262,5 @@ impl KDTreeNode {
 //integrate them all
 
 //add a binary heap to the knn helper function, fill in the heap till its of k size, then check for the maximum value of k like
+
+// fill the heap until it's size is atleast K, pop the largest element off the heap and insert smaller elements into the heap
