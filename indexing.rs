@@ -15,7 +15,7 @@ pub enum KNNType {
     Cosine,
 }
 
-struct DataHeap {
+pub struct DataHeap {
     data: Box<Data>,
     distance: f32,
 }
@@ -148,8 +148,7 @@ pub fn get_knn(
     let mut ret_vec: Vec<String> = Vec::new();
     let mut i = 1;
     ret_vec.push(format!("Visited {} nodes", n_visited));
-    //Need to fix this memory allocation error
-    for point in heap.into_vec().iter() {
+    for point in heap.iter() {
         ret_vec.push(format!("{}. Point: {:?}", i, point.data));
         ret_vec.push(format!("   Distance: {}", point.distance));
         i += 1;
