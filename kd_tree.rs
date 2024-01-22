@@ -138,7 +138,12 @@ impl KDTree {
     pub fn delete_node() {}
 
     // print data for debug
-    pub fn print_tree_for_debug() {}
+    pub fn print_tree_for_debug(&self) {
+        let iterated: Vec<Data> = self.traversal(0);
+        for iter in iterated {
+            println!("{:?}", iter);
+        }
+    }
 
     // different methods of knn
 }
