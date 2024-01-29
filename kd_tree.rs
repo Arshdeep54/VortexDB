@@ -14,6 +14,7 @@ pub struct KDTreeInternals {
 }
 
 pub struct KDTreeNode {
+    pub key: String,
     pub left: Option<Box<KDTreeNode>>,
     pub right: Option<Box<KDTreeNode>>,
     pub dataset: Data,
@@ -21,8 +22,10 @@ pub struct KDTreeNode {
 }
 
 impl KDTreeNode {
+    // Add the logic here to create a new db and insert the tree into the database
     fn new(data: Data, dim: usize) -> KDTreeNode {
         KDTreeNode {
+            key: create_key(),
             left: None,
             right: None,
             dataset: data,
@@ -39,7 +42,8 @@ pub struct KDTree {
 }
 
 impl KDTree {
-    //create an empty tree function
+    // Create an empty tree
+    /* [Note] The dimension of the tree has to be set aftre creating the tree */
     pub fn new() -> KDTree {
         KDTree {
             _root: None,
@@ -55,17 +59,23 @@ impl KDTree {
         }
     }
 
-    // add a node
+    // Add a node
+    // If the dimension of the tree is zero, then the input vector becomes the dimension of the tree
     pub fn add_node(&mut self, data: Data, depth: usize) {
-        assert_eq!(self.dim, data.vector.vector.len());
         if self._root.is_none() {
+            self.dim = data.vector.vector.len();
             self._root = Some(Box::new(KDTreeNode::new(data, 0)));
+            self._internals.current_number_of_kd_tree_nodes += 1;
             return;
         }
-        if self._internals.kd_tree_allow_update {
+
+        assert_eq!(self.dim, data.vector.vector.len());
+
+        if !self._internals.kd_tree_allow_update {
             println!("KDTree is locked for rebuild");
             return;
         }
+
         if self._internals.previous_tree_size != 0 {
             let current_ratio: f32 = self._internals.current_number_of_kd_tree_nodes as f32
                 / self._internals.previous_tree_size as f32;
@@ -173,6 +183,7 @@ fn create_tree_helper(points: &mut [Data], dim: usize) -> KDTreeNode {
     let points_len = points.len();
     if points_len == 1 {
         return KDTreeNode {
+            key: create_key(),
             dataset: points[0].clone(),
             left: None,
             right: None,
@@ -201,6 +212,7 @@ fn create_tree_helper(points: &mut [Data], dim: usize) -> KDTreeNode {
     };
 
     KDTreeNode {
+        key: create_key(),
         dataset: pivot,
         left,
         right,
@@ -240,4 +252,9 @@ fn partition_by<T>(arr: &mut [T], pivot_index: usize, cmp: &dyn Fn(&T, &T) -> Or
     }
     arr.swap(array_len - 1, store_index);
     store_index
+}
+
+// Creates a key for every new node created to store in the corresponding database
+pub fn create_key() -> String {
+    return String::new();
 }

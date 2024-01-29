@@ -3,6 +3,8 @@ mod tests {
     use kd_tree::KDTree;
     use types::{Data, DataType, VectorData};
 
+    use rand::prelude::*;
+
     use crate::{kd_tree, types};
 
     #[test]
@@ -58,9 +60,14 @@ mod tests {
         assert_eq!(data.payload, "Hello");
     }
 
-    fn random_data(a: f32, b: f32, c: f32) -> Data {
+    fn random_data(dim: usize) -> Data {
+        let mut rng = rand::thread_rng();
+        let mut randoms: Vec<f32> = Vec::new();
+        for _ in 0..dim {
+            randoms.push(rng.gen());
+        }
         let vector = VectorData {
-            vector: vec![a, b, c],
+            vector: randoms,
             embedding_type: String::from("text"),
         };
         let data = Data {
@@ -72,26 +79,23 @@ mod tests {
     }
 
     #[test]
-    fn create_tree() {
-        let mut tree = KDTree::new();
-        tree.dim = 3;
-        let data = random_data(1.0, 2.0, 3.0);
-        tree.add_node(data, 0);
-        let data = random_data(0.0, -3.0, 7.0);
-        tree.add_node(data, 0);
-        let data = random_data(5.0, -9.0, 3.0);
-        tree.add_node(data, 0);
-    }
-
-    #[test]
     #[should_panic]
     fn test_input_incorrect_vector() {
         let mut tree = KDTree::new();
         tree.dim = 2;
-        let data = random_data(1.0, 2.0, 3.0);
+        let data = random_data(3);
         tree.add_node(data, 0);
     }
 
     #[test]
-    fn rebuild_check() {}
+    fn rebuild_check() {
+        let mut tree = KDTree::new();
+        tree.dim = 3;
+        for _ in 0..12{
+            let data = random_data(3);
+            tree.add_node(data, 0);
+        }
+        tree.print_tree_for_debug();
+        assert_eq!(tree._internals.rebuild_counter, 2);
+    }
 }

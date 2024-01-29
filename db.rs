@@ -1,6 +1,7 @@
 //For rocks-db
 use super::types::Data;
 use crate::kd_tree::KDTree;
+use crate::keygen::*;
 use hex::{decode, FromHexError as hexerr};
 use rocksdb::{
     DBWithThreadMode,
@@ -11,7 +12,6 @@ use rocksdb::{
     SingleThreaded,
     DB,
 };
-use sha2::{Digest, Sha256};
 
 pub struct Database {
     pub db: DBWithThreadMode<SingleThreaded>,
@@ -45,12 +45,9 @@ impl Database {
 
     pub fn insert_in_database(&self, data: Data) -> Result<String, err> {
         let value = serialize(data);
-        let mut hasher = Sha256::new();
-        hasher.update(&value);
-        let key = hasher.finalize();
-        let key_string = format!("{:x}", key);
+        let key_string = hash(value.clone());
 
-        match self.db.put(key, value.as_ref() as &[u8]) {
+        match self.db.put(&key_string, value.as_ref() as &[u8]) {
             Ok(_) => {
                 return Ok(key_string);
             }
@@ -58,10 +55,11 @@ impl Database {
                 return Err(e);
             }
         };
+
+        // also add a new node to the database
     }
 
     pub fn delete_database(&self) -> Result<(), err> {
-        //destroy the database
         let options = Options::default();
         match DB::destroy(&options, &self.path) {
             Ok(()) => {
@@ -71,13 +69,13 @@ impl Database {
                 return Err(e);
             }
         }
+
+        // Also remove the kd-tree database
     }
 
     pub fn delete_from_database_with_value(&self, data: Data) -> Result<Option<()>, err> {
         let value = serialize(data);
-        let mut hasher = Sha256::new();
-        hasher.update(&value);
-        let key = hasher.finalize();
+        let key = hash(value);
 
         match self.db.get(&key) {
             Ok(Some(_)) => match self.db.delete(key) {
@@ -87,6 +85,8 @@ impl Database {
             Ok(None) => Ok(None),
             Err(e) => Err(e),
         }
+
+        // Find the corresponding point and remove it from the database
     }
 
     pub fn delete_from_database_with_key(
@@ -131,14 +131,4 @@ impl Database {
             }
         }
     }
-}
-
-pub fn serialize(vector: Data) -> Vec<u8> {
-    let bytes = bincode::serialize(&vector).unwrap();
-    return bytes;
-}
-
-pub fn deserialize(bytes: &[u8]) -> Data {
-    let vec = bincode::deserialize(&bytes).unwrap();
-    return vec;
 }

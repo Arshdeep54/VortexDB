@@ -1,15 +1,16 @@
 use crate::db;
 use crate::dbpath;
 use crate::indexing;
-use crate::dbpath;
+use crate::keygen;
 use crate::vectoriser;
 
 use std::collections::HashMap;
 use std::{env, io};
 // use std::ops::Deref;
-use db::{deserialize, Database};
+use db::Database;
 use dbpath::{check_database, check_path, find_databases, write_env};
 use indexing::{get_knn, KNNType};
+use keygen::deserialize;
 use types::{Data, DataType, VectorData};
 
 use rocksdb::IteratorMode;

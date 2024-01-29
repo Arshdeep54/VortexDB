@@ -1,5 +1,6 @@
-use crate::db::{deserialize, Database};
+use crate::db::Database;
 use crate::kd_tree::{KDTree, KDTreeNode};
+use crate::keygen::deserialize;
 use crate::types::{Data, DataType, VectorData};
 use core::f32;
 use std::cmp::Ordering;
