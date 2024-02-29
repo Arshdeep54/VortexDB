@@ -366,19 +366,7 @@ fn read_data() -> Option<Data> {
     let mut embedding_type = String::new();
     println!("Enter embedding type: ");
     io::stdin().read_line(&mut embedding_type).expect("Failed to read line");
-
-    // let mut vec_len = String::new();
-    // println!("Enter vector length: ");
-    // io::stdin().read_line(&mut vec_len).expect("Failed to read line");
-    // let vec_len: usize = vec_len.trim().parse().unwrap();
-    // println!("Enter values: ");
-    // let mut vec = Vec::new();
-    // for _ in 0..vec_len {
-    //     let mut line = String::new();
-    //     io::stdin().read_line(&mut line).unwrap();
-    //     let num: f32 = line.trim().parse().unwrap();
-    //     vec.push(num);
-    // }
+    
     let vec = vectoriser::vectorise(&payload, "");
 
     let data: Data = Data {
