@@ -82,9 +82,10 @@ mod tests {
     #[should_panic]
     fn test_input_incorrect_vector() {
         let mut tree = KDTree::new();
-        tree.dim = 2;
+        let data = random_data(2);
+        tree.add_node((String::from("test"), data.vector.vector), 0);
         let data = random_data(3);
-        tree.add_node(data, 0);
+        tree.add_node((String::from("test"), data.vector.vector), 0);
     }
 
     #[test]
@@ -93,7 +94,7 @@ mod tests {
         tree.dim = 3;
         for _ in 0..12{
             let data = random_data(3);
-            tree.add_node(data, 0);
+            tree.add_node((String::from("test"), data.vector.vector), 0);
         }
         tree.print_tree_for_debug();
         assert_eq!(tree._internals.rebuild_counter, 2);

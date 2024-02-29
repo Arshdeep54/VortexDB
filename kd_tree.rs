@@ -60,17 +60,14 @@ impl KDTree {
 
     // Add a node
     // If the dimension of the tree is zero, then it becomes equal to the input data
-    // Add the functionality of adding the node to the data base
     pub fn add_node(&mut self, data: (String, Vec<f32>), depth: usize) {
         if self._root.is_none() {
-            // Add function here to check dimension
-            // self.dim = data.vector.vector.len();
+            self.dim = data.1.len();
             self._root = Some(Box::new(KDTreeNode::new(data, 0)));
             self._internals.current_number_of_kd_tree_nodes += 1;
             return;
         }
 
-        // Add a function that will return a data for a given key string as data
         assert_eq!(self.dim, data.1.len());
 
         if !self._internals.kd_tree_allow_update {
