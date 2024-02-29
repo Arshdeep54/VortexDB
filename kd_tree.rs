@@ -65,7 +65,7 @@ impl KDTree {
         if self._root.is_none() {
             // Add function here to check dimension
             // self.dim = data.vector.vector.len();
-            self._root = Some(Box::new(KDTreeNode::new(data,0)));
+            self._root = Some(Box::new(KDTreeNode::new(data, 0)));
             self._internals.current_number_of_kd_tree_nodes += 1;
             return;
         }
@@ -96,9 +96,7 @@ impl KDTree {
         let mut current_depth = depth;
         loop {
             let current_dimension = current_depth % self.dim;
-            if data.1[current_dimension]
-                < current_node.vector[current_dimension]
-            {
+            if data.1[current_dimension] < current_node.vector[current_dimension] {
                 if current_node.left.is_none() {
                     current_node.left = Some(Box::new(KDTreeNode::new(data, current_dimension)));
                     break;
@@ -140,16 +138,16 @@ impl KDTree {
         result
     }
 
-    // find a node
-    fn find_node() {}
-
-    // update node
-    pub fn update_node_from_key() {}
-
-    pub fn update_node_from_vec() {}
-
-    // delete a node **
-    pub fn delete_node(&self, data: String) {}
+    // delete a node
+    pub fn delete_node(&mut self, data: String) {
+        self._internals.kd_tree_allow_update = false;
+        let mut points = self.traversal(0);
+        let index = points.iter().position(|x| *x.0 == data).unwrap();
+        points.remove(index);
+        let mut points = Vec::into_boxed_slice(points);
+        self._root = Some(Box::new(create_tree_helper(points.as_mut(), 0)));
+        self._internals.kd_tree_allow_update = true;
+    }
 
     // print data for debug
     pub fn print_tree_for_debug(&self) {

@@ -83,7 +83,7 @@ impl Database {
         }
     }
 
-    pub fn delete_from_database_with_value(&self, data: Data) -> Result<Option<()>, err> {
+    pub fn delete_from_database_with_value(&mut self, data: Data) -> Result<Option<()>, err> {
         let value = serialize(data);
         let key = hash(value);
 
@@ -103,7 +103,7 @@ impl Database {
     }
 
     pub fn delete_from_database_with_key(
-        &self,
+        &mut self,
         input: &str,
     ) -> Result<Result<Option<()>, err>, hexerr> {
         match decode(input) {

@@ -2,8 +2,8 @@ use crate::db;
 use crate::dbpath;
 use crate::indexing;
 use crate::keygen;
-use crate::vectoriser;
 use crate::types;
+use crate::vectoriser;
 
 use std::collections::HashMap;
 use std::{env, io};
@@ -295,18 +295,17 @@ fn get_from_database(database: &Database) {
         .read_line(&mut input)
         .expect("Failed to read key");
     match database.get_data_from_key(input.trim()) {
-        Ok(v) =>
-            match v {
-                Ok(Some(v)) => println!("{:?}", v.payload),
-                Ok(None) => {
-                    println!("Key not found");
-                    return;
-                }
-                Err(e) => {
-                    println!("{}", e);
-                    return;
-                }
+        Ok(v) => match v {
+            Ok(Some(v)) => println!("{:?}", v.payload),
+            Ok(None) => {
+                println!("Key not found");
+                return;
             }
+            Err(e) => {
+                println!("{}", e);
+                return;
+            }
+        },
         Err(e) => {
             println!("{}", e);
             return;
@@ -314,7 +313,7 @@ fn get_from_database(database: &Database) {
     }
 }
 
-fn delete_from_database(database: &Database) {
+fn delete_from_database(database: &mut Database) {
     println!("(1) Delete by entering data");
     println!("(2) Delete by entering key");
 
@@ -395,8 +394,10 @@ fn read_data() -> Option<Data> {
 
     let mut embedding_type = String::new();
     println!("Enter embedding type: ");
-    io::stdin().read_line(&mut embedding_type).expect("Failed to read line");
-    
+    io::stdin()
+        .read_line(&mut embedding_type)
+        .expect("Failed to read line");
+
     let vec = vectoriser::vectorise(&payload, "");
 
     let data: Data = Data {
@@ -443,7 +444,9 @@ fn find_knn(database: &mut Database) {
     match choice.trim() {
         "1" => {
             let mut payload = String::new();
-            io::stdin().read_line(&mut payload).expect("Failed to read line");
+            io::stdin()
+                .read_line(&mut payload)
+                .expect("Failed to read line");
             let vec = vectoriser::vectorise(&payload, "");
             givenvec = vec.vector;
         }
