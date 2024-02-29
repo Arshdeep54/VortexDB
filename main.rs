@@ -6,7 +6,7 @@ mod testing;
 mod types;
 mod dbpath;
 mod vectoriser;
-
+mod db;
 fn main() {
     cli::run_cli();
 }

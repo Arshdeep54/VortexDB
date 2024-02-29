@@ -3,6 +3,7 @@ use crate::dbpath;
 use crate::indexing;
 use crate::keygen;
 use crate::vectoriser;
+use crate::types;
 
 use std::collections::HashMap;
 use std::{env, io};
