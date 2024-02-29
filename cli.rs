@@ -284,7 +284,7 @@ fn view_database(database: &Database) {
         let hex_strings: Vec<String> = key.iter().map(|b| format!("{:02x}", b)).collect();
         let result = hex_strings.join("");
         let vec = deserialize(&value);
-        println!("Key: {}\nValue: {:?}", result, vec.payload);
+        println!("Key: {:?}\nValue: {:?}", result, vec.payload);
     }
 }
 
@@ -449,6 +449,7 @@ fn find_knn(database: &mut Database) {
                 .expect("Failed to read line");
             let vec = vectoriser::vectorise(&payload, "");
             givenvec = vec.vector;
+            println!("{:?}", givenvec)
         }
         "2" => {
             println!("Enter key");

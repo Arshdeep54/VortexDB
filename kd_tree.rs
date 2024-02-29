@@ -150,7 +150,7 @@ impl KDTree {
     pub fn print_tree_for_debug(&self) {
         let iterated: Vec<(String, Vec<f32>)> = self.traversal(0);
         for iter in iterated {
-            println!("{:?}", iter);
+            println!("{}", iter.0);
         }
     }
 

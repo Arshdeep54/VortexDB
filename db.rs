@@ -13,6 +13,7 @@ use rocksdb::{
     SingleThreaded,
     DB,
 };
+use sha2::{Digest, Sha256};
 
 pub struct Database {
     pub db: DBWithThreadMode<SingleThreaded>,
@@ -49,6 +50,8 @@ impl Database {
             database.tree.add_node((result, vec.vector.vector), 0);
         }
 
+        database.tree.print_tree_for_debug();
+
         return Ok(database);
     }
 
@@ -58,9 +61,11 @@ impl Database {
 
     pub fn insert_in_database(&mut self, data: Data) -> Result<String, err> {
         let value = serialize(data.clone());
-        let key_string = hash(value.clone());
-
-        match self.db.put(&key_string, value.as_ref() as &[u8]) {
+        let mut hasher = Sha256::new();
+        hasher.update(&value);
+        let key = hasher.finalize();
+        let key_string = format!("{:x}", key);
+        match self.db.put(&key, value.as_ref() as &[u8]) {
             Ok(_) => {
                 self.tree.add_node((key_string.clone(),data.vector.vector), 0);
                 return Ok(key_string);
@@ -84,12 +89,15 @@ impl Database {
     }
 
     pub fn delete_from_database_with_value(&mut self, data: Data) -> Result<Option<()>, err> {
-        let value = serialize(data);
-        let key = hash(value);
+        let value = serialize(data.clone());
+        let mut hasher = Sha256::new();
+        hasher.update(&value);
+        let key = hasher.finalize();
+        let key_string = format!("{:x}", key);
 
         match self.db.get(&key) {
             Ok(Some(_)) => {
-                self.tree.delete_node(key.clone());
+                self.tree.delete_node(key_string);
                 match self.db.delete(key) {
                     Ok(_) => Ok(Some(())),
                     Err(e) => Err(e),

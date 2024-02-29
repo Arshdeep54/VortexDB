@@ -93,9 +93,8 @@ pub fn get_knn(
         insert_heap.push(DataHeap {
             key: node.0.clone(),
             distance: distance(input.clone(), node.1.clone(), knn_type),
-        })
+        });
     }
-
     let binding = database.tree._root.as_ref().unwrap();
     let (heap, n_visited) = binding.find_nearest_neighbors(input, knn_type, &mut insert_heap);
     let mut ret_vec: Vec<String> = Vec::new();
@@ -130,7 +129,7 @@ impl KDTreeNode {
         let mut my_n_visited = n_visited;
         let mut my_distances = distances;
 
-        if self.vector[self.dim] < point[self.dim] && self.right.is_some() {
+        if self.vector[self.dim] < point[self.dim] && self.left.is_some() {
             let (a, b) = self.left.as_ref().unwrap().find_nearest_neighbor_helper(
                 point.clone(),
                 my_n_visited,

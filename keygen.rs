@@ -11,10 +11,3 @@ pub fn deserialize(bytes: &[u8]) -> Data {
     return vec;
 }
 
-pub fn hash(vector: Vec<u8>) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(&vector);
-    let key = hasher.finalize();
-    let key_string = format!("{:x}", key);
-    return key_string;
-}
