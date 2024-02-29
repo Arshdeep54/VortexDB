@@ -90,7 +90,7 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         }
     }
 
-    let database = &database.unwrap();
+    let database = &mut database.unwrap();
     loop {
         println!("{}", input.trim());
         println!("(1) Insert in Database");
@@ -256,7 +256,7 @@ fn delete_database(database: &Database) {
     };
 }
 
-fn insert_in_database(database: &Database) {
+fn insert_in_database(database: &mut Database) {
     let data: Data;
     match read_data() {
         Some(v) => {
@@ -268,7 +268,9 @@ fn insert_in_database(database: &Database) {
     }
     println!("Inserting into a database...");
     match database.insert_in_database(data) {
-        Ok(key) => println!("Inserted with key {}", key),
+        Ok(key) => {
+            println!("Inserted with key {}", key);
+        }
         Err(e) => println!("{}", e),
     };
 }
@@ -332,7 +334,11 @@ fn delete_from_database(database: &Database) {
             }
             match database.delete_from_database_with_value(data) {
                 Ok(v) => match v {
-                    Some(_) => println!("Data deleted successfully"),
+                    Some(_) => {
+                        println!("Data deleted successfully");
+                        //change this function to delete from data
+                        // database.tree.delete_node(input.trim().to_string());
+                    }
                     None => println!("Key not found"),
                 },
                 Err(e) => println!("{}", e),
@@ -346,7 +352,10 @@ fn delete_from_database(database: &Database) {
                 .expect("Failed to read line");
             match database.delete_from_database_with_key(input.trim()) {
                 Ok(v) => match v {
-                    Ok(Some(_)) => println!("Data deleted successfully"),
+                    Ok(Some(_)) => {
+                        println!("Data deleted successfully");
+                        database.tree.delete_node(input.trim().to_string());
+                    }
                     Ok(None) => println!("Key not found"),
                     Err(e) => println!("{}", e),
                 },
@@ -421,7 +430,7 @@ fn read_data() -> Option<Data> {
     };
 }
 
-fn find_knn(database: &Database) {
+fn find_knn(database: &mut Database) {
     println!("Please Select input for KNN");
     println!("(1) Enter Data");
     println!("(2) Enter Key");
@@ -490,28 +499,28 @@ fn find_knn(database: &Database) {
             .expect("Failed to read line");
         match choice.trim() {
             "1" => {
-                let result = get_knn(database, &givenvec, kvalue, KNNType::Euclidean);
+                let result = get_knn(database, givenvec, kvalue, KNNType::Euclidean);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "2" => {
-                let result = get_knn(database, &givenvec, kvalue, KNNType::Manhattan);
+                let result = get_knn(database, givenvec, kvalue, KNNType::Manhattan);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "3" => {
-                let result = get_knn(database, &givenvec, kvalue, KNNType::Hamming);
+                let result = get_knn(database, givenvec, kvalue, KNNType::Hamming);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "4" => {
-                let result = get_knn(database, &givenvec, kvalue, KNNType::Cosine);
+                let result = get_knn(database, givenvec, kvalue, KNNType::Cosine);
                 for r in &result {
                     println!("{}", r);
                 }

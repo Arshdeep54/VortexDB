@@ -1,10 +1,9 @@
-use crate::types;
-
 use std::cmp::Ordering;
 use std::cmp::Ordering::Less;
 
-use types::Data;
+use serde_derive::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct KDTreeInternals {
     pub kd_tree_allow_update: bool,
     pub current_number_of_kd_tree_nodes: usize,
@@ -13,22 +12,23 @@ pub struct KDTreeInternals {
     pub rebuild_counter: usize,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct KDTreeNode {
-    pub key: String,
     pub left: Option<Box<KDTreeNode>>,
     pub right: Option<Box<KDTreeNode>>,
-    pub dataset: Data,
+    pub key: String,
+    pub vector: Vec<f32>,
     pub dim: usize,
 }
 
 impl KDTreeNode {
     // Add the logic here to create a new db and insert the tree into the database
-    fn new(data: Data, dim: usize) -> KDTreeNode {
+    fn new(data: (String, Vec<f32>), dim: usize) -> KDTreeNode {
         KDTreeNode {
-            key: create_key(),
             left: None,
             right: None,
-            dataset: data,
+            key: data.0,
+            vector: data.1,
             dim,
         }
     }
@@ -42,8 +42,7 @@ pub struct KDTree {
 }
 
 impl KDTree {
-    // Create an empty tree
-    /* [Note] The dimension of the tree has to be set aftre creating the tree */
+    // Create an empty tree with default values
     pub fn new() -> KDTree {
         KDTree {
             _root: None,
@@ -60,16 +59,19 @@ impl KDTree {
     }
 
     // Add a node
-    // If the dimension of the tree is zero, then the input vector becomes the dimension of the tree
-    pub fn add_node(&mut self, data: Data, depth: usize) {
+    // If the dimension of the tree is zero, then it becomes equal to the input data
+    // Add the functionality of adding the node to the data base
+    pub fn add_node(&mut self, data: (String, Vec<f32>), depth: usize) {
         if self._root.is_none() {
-            self.dim = data.vector.vector.len();
-            self._root = Some(Box::new(KDTreeNode::new(data, 0)));
+            // Add function here to check dimension
+            // self.dim = data.vector.vector.len();
+            self._root = Some(Box::new(KDTreeNode::new(data,0)));
             self._internals.current_number_of_kd_tree_nodes += 1;
             return;
         }
 
-        assert_eq!(self.dim, data.vector.vector.len());
+        // Add a function that will return a data for a given key string as data
+        assert_eq!(self.dim, data.1.len());
 
         if !self._internals.kd_tree_allow_update {
             println!("KDTree is locked for rebuild");
@@ -94,8 +96,8 @@ impl KDTree {
         let mut current_depth = depth;
         loop {
             let current_dimension = current_depth % self.dim;
-            if data.vector.vector[current_dimension]
-                < current_node.dataset.vector.vector[current_dimension]
+            if data.1[current_dimension]
+                < current_node.vector[current_dimension]
             {
                 if current_node.left.is_none() {
                     current_node.left = Some(Box::new(KDTreeNode::new(data, current_dimension)));
@@ -132,8 +134,8 @@ impl KDTree {
     }
 
     // traversal
-    pub fn traversal(&self, k_value: usize) -> Vec<Data> {
-        let mut result: Vec<Data> = Vec::new();
+    pub fn traversal(&self, k_value: usize) -> Vec<(String, Vec<f32>)> {
+        let mut result: Vec<(String, Vec<f32>)> = Vec::new();
         inorder_traversal_helper(self._root.as_deref(), &mut result, k_value);
         result
     }
@@ -142,14 +144,16 @@ impl KDTree {
     fn find_node() {}
 
     // update node
-    pub fn update_node() {}
+    pub fn update_node_from_key() {}
+
+    pub fn update_node_from_vec() {}
 
     // delete a node **
-    pub fn delete_node() {}
+    pub fn delete_node(&self, data: String) {}
 
     // print data for debug
     pub fn print_tree_for_debug(&self) {
-        let iterated: Vec<Data> = self.traversal(0);
+        let iterated: Vec<(String, Vec<f32>)> = self.traversal(0);
         for iter in iterated {
             println!("{:?}", iter);
         }
@@ -161,7 +165,7 @@ impl KDTree {
 // Traversal helper function
 fn inorder_traversal_helper(
     node: Option<&KDTreeNode>,
-    result: &mut Vec<Data>,
+    result: &mut Vec<(String, Vec<f32>)>,
     k_value: usize,
 ) -> Option<bool> {
     if node.is_none() {
@@ -172,19 +176,19 @@ fn inorder_traversal_helper(
     }
     let current_node = node.unwrap();
     inorder_traversal_helper(current_node.to_owned().left.as_deref(), result, k_value);
-    result.push(current_node.dataset.clone());
+    result.push((current_node.key.clone(), current_node.vector.clone()));
     inorder_traversal_helper(current_node.to_owned().right.as_deref(), result, k_value);
 
     Some(true)
 }
 
 // Rebuild tree helper functions
-fn create_tree_helper(points: &mut [Data], dim: usize) -> KDTreeNode {
+fn create_tree_helper(points: &mut [(String, Vec<f32>)], dim: usize) -> KDTreeNode {
     let points_len = points.len();
     if points_len == 1 {
         return KDTreeNode {
-            key: create_key(),
-            dataset: points[0].clone(),
+            key: points[0].0.clone(),
+            vector: points[0].1.clone(),
             left: None,
             right: None,
             dim,
@@ -193,27 +197,25 @@ fn create_tree_helper(points: &mut [Data], dim: usize) -> KDTreeNode {
 
     // Split around the median
     let pivot = quickselect_by(points, points_len / 2, &|a, b| {
-        a.vector.vector[dim]
-            .partial_cmp(&b.vector.vector[dim])
-            .unwrap()
+        a.1[dim].partial_cmp(&b.1[dim]).unwrap()
     });
 
     let left = Some(Box::new(create_tree_helper(
         &mut points[0..points_len / 2],
-        (dim + 1) % pivot.vector.vector.len(),
+        (dim + 1) % pivot.1.len(),
     )));
     let right = if points.len() >= 3 {
         Some(Box::new(create_tree_helper(
             &mut points[points_len / 2 + 1..points_len],
-            (dim + 1) % pivot.vector.vector.len(),
+            (dim + 1) % pivot.1.len(),
         )))
     } else {
         None
     };
 
     KDTreeNode {
-        key: create_key(),
-        dataset: pivot,
+        key: pivot.0,
+        vector: pivot.1,
         left,
         right,
         dim,
@@ -252,9 +254,4 @@ fn partition_by<T>(arr: &mut [T], pivot_index: usize, cmp: &dyn Fn(&T, &T) -> Or
     }
     arr.swap(array_len - 1, store_index);
     store_index
-}
-
-// Creates a key for every new node created to store in the corresponding database
-pub fn create_key() -> String {
-    return String::new();
 }
