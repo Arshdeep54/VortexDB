@@ -2,6 +2,7 @@ use crate::db;
 use crate::types;
 use crate::indexing;
 use crate::dbpath;
+use crate::vectoriser;
 
 use std::collections::HashMap;
 use std::{ env, io };
@@ -268,7 +269,7 @@ fn view_database(database: &Database) {
             .collect();
         let result = hex_strings.join("");
         let vec = deserialize(&value);
-        println!("Key: {}\nValue: {:?}", result, vec);
+        println!("Key: {}\nValue: {:?}", result, vec.payload);
     }
 }
 
@@ -279,7 +280,7 @@ fn get_from_database(database: &Database) {
     match database.get_data_from_key(input.trim()) {
         Ok(v) =>
             match v {
-                Ok(Some(v)) => println!("{:?}", v),
+                Ok(Some(v)) => println!("{:?}", v.payload),
                 Ok(None) => {
                     println!("Key not found");
                     return;
@@ -366,22 +367,23 @@ fn read_data() -> Option<Data> {
     println!("Enter embedding type: ");
     io::stdin().read_line(&mut embedding_type).expect("Failed to read line");
 
-    let mut vec_len = String::new();
-    println!("Enter vector length: ");
-    io::stdin().read_line(&mut vec_len).expect("Failed to read line");
-    let vec_len: usize = vec_len.trim().parse().unwrap();
-    println!("Enter values: ");
-    let mut vec = Vec::new();
-    for _ in 0..vec_len {
-        let mut line = String::new();
-        io::stdin().read_line(&mut line).unwrap();
-        let num: f32 = line.trim().parse().unwrap();
-        vec.push(num);
-    }
+    // let mut vec_len = String::new();
+    // println!("Enter vector length: ");
+    // io::stdin().read_line(&mut vec_len).expect("Failed to read line");
+    // let vec_len: usize = vec_len.trim().parse().unwrap();
+    // println!("Enter values: ");
+    // let mut vec = Vec::new();
+    // for _ in 0..vec_len {
+    //     let mut line = String::new();
+    //     io::stdin().read_line(&mut line).unwrap();
+    //     let num: f32 = line.trim().parse().unwrap();
+    //     vec.push(num);
+    // }
+    let vec = vectoriser::vectorise(&payload, "");
 
     let data: Data = Data {
         vector: VectorData {
-            vector: vec,
+            vector: vec.vector,
             embedding_type: embedding_type,
         },
         payload: payload,
@@ -389,7 +391,7 @@ fn read_data() -> Option<Data> {
     };
 
     println!("Your Data is");
-    println!("{:?}", data);
+    println!("{:?}", data.payload);
     println!("(1) Confirm");
     println!("(0) Cancel");
 
@@ -420,19 +422,10 @@ fn find_knn(database: &Database) {
     io::stdin().read_line(&mut choice).expect("Failed to read line");
     match choice.trim() {
         "1" => {
-            let mut vec_len = String::new();
-            println!("Enter vector length: ");
-            io::stdin().read_line(&mut vec_len).expect("Failed to read line");
-            let vec_len: usize = vec_len.trim().parse().unwrap();
-            println!("Enter values: ");
-            let mut vec = Vec::new();
-            for _ in 0..vec_len {
-                let mut line = String::new();
-                io::stdin().read_line(&mut line).unwrap();
-                let num: f32 = line.trim().parse().unwrap();
-                vec.push(num);
-            }
-            givenvec = vec;
+            let mut payload = String::new();
+            io::stdin().read_line(&mut payload).expect("Failed to read line");
+            let vec = vectoriser::vectorise(&payload, "");
+            givenvec = vec.vector;
         }
         "2" => {
             println!("Enter key");
