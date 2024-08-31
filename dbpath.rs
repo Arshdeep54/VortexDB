@@ -1,7 +1,7 @@
 use dotenv::dotenv;
-use std::{ collections::HashMap, env, path::Path, io, io::Write  };
-use rocksdb::{ DB, Options };
+use rocksdb::{Options, DB};
 use std::fs::OpenOptions;
+use std::{collections::HashMap, env, io, io::Write, path::Path};
 
 pub fn check_path(file_path: &String) -> bool {
     dotenv().ok();
@@ -34,14 +34,22 @@ pub fn find_databases() -> HashMap<String, String> {
         db_path_var.push_str(&temp);
         db_name_var.push_str(&temp);
 
-        collections.insert(env::var(db_name_var).unwrap(), env::var(db_path_var).unwrap());
+        collections.insert(
+            env::var(db_name_var).unwrap(),
+            env::var(db_path_var).unwrap(),
+        );
     }
     return collections;
 }
 
 pub fn write_env(databases: &HashMap<String, String>) {
     let file_path = ".env";
-    let file = OpenOptions::new().write(true).truncate(true).create(true).open(file_path).unwrap();
+    let file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .open(file_path)
+        .unwrap();
 
     let mut buffered_file = io::BufWriter::new(file);
 

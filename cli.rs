@@ -1,16 +1,18 @@
 use crate::db;
-use crate::types;
-use crate::indexing;
 use crate::dbpath;
+use crate::indexing;
+use crate::keygen;
+use crate::types;
 use crate::vectoriser;
 
 use std::collections::HashMap;
-use std::{ env, io };
+use std::{env, io};
 // use std::ops::Deref;
-use db::{ Database, deserialize };
-use dbpath::{ check_database, check_path, find_databases, write_env };
-use types::{ Data, DataType, VectorData };
-use indexing::{ get_euclidean_knn, get_manhattan_knn, get_hamming_knn, get_cosine_knn };
+use db::Database;
+use dbpath::{check_database, check_path, find_databases, write_env};
+use indexing::{get_knn, KNNType};
+use keygen::deserialize;
+use types::{Data, DataType, VectorData};
 
 use rocksdb::IteratorMode;
 
@@ -30,7 +32,9 @@ fn main_menu() {
         println!("(0) Exit");
 
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice).expect("Failed to read line");
+        io::stdin()
+            .read_line(&mut choice)
+            .expect("Failed to read line");
 
         match choice.trim() {
             "1" => {
@@ -66,7 +70,9 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
     println!("Enter name of database");
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Faile to read line");
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Faile to read line");
 
     if !databases.contains_key(input.trim()) {
         println!("Database does not exitst");
@@ -85,7 +91,7 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         }
     }
 
-    let database: &Database = &database.unwrap();
+    let database = &mut database.unwrap();
     loop {
         println!("{}", input.trim());
         println!("(1) Insert in Database");
@@ -97,7 +103,9 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         println!("(7) Switch database");
 
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice).expect("Failed to read line");
+        io::stdin()
+            .read_line(&mut choice)
+            .expect("Failed to read line");
 
         match choice.trim() {
             "1" => {
@@ -129,7 +137,9 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
 fn add_databases(mut databases: &mut HashMap<String, String>) {
     println!("Enter the databse name");
     let mut name = String::new();
-    io::stdin().read_line(&mut name).expect("Failed to read line");
+    io::stdin()
+        .read_line(&mut name)
+        .expect("Failed to read line");
     if databases.contains_key(name.trim()) {
         println!("This name already exists");
         return;
@@ -143,7 +153,9 @@ fn add_databases(mut databases: &mut HashMap<String, String>) {
 fn delete_databases(mut databases: &mut HashMap<String, String>) {
     println!("Enter the database name");
     let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Failed to read line");
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read line");
 
     if databases.contains_key(input.trim()) {
         let exit = change_path(&mut databases, &input);
@@ -189,7 +201,9 @@ fn change_path(databases: &mut HashMap<String, String>, input: &str) -> bool {
         println!("(2) Enter custom path");
         println!("(3) Remove database");
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice).expect("Failed to read line");
+        io::stdin()
+            .read_line(&mut choice)
+            .expect("Failed to read line");
         match choice.trim() {
             "1" => {
                 let current_dir = env::current_dir().unwrap();
@@ -203,7 +217,9 @@ fn change_path(databases: &mut HashMap<String, String>, input: &str) -> bool {
             "2" => {
                 println!("Enter path");
                 let mut new_path = String::new();
-                io::stdin().read_line(&mut new_path).expect("Failed to read line");
+                io::stdin()
+                    .read_line(&mut new_path)
+                    .expect("Failed to read line");
                 if check_path(&new_path.trim().to_string()) {
                     databases.insert(input.to_string(), new_path.trim().to_string());
                     write_env(databases);
@@ -241,7 +257,7 @@ fn delete_database(database: &Database) {
     };
 }
 
-fn insert_in_database(database: &Database) {
+fn insert_in_database(database: &mut Database) {
     let data: Data;
     match read_data() {
         Some(v) => {
@@ -253,7 +269,9 @@ fn insert_in_database(database: &Database) {
     }
     println!("Inserting into a database...");
     match database.insert_in_database(data) {
-        Ok(key) => println!("Inserted with key {}", key),
+        Ok(key) => {
+            println!("Inserted with key {}", key);
+        }
         Err(e) => println!("{}", e),
     };
 }
@@ -263,33 +281,31 @@ fn view_database(database: &Database) {
     println!("Iterating over database...");
     for item in iter {
         let (key, value) = item.unwrap();
-        let hex_strings: Vec<String> = key
-            .iter()
-            .map(|b| format!("{:02x}", b))
-            .collect();
+        let hex_strings: Vec<String> = key.iter().map(|b| format!("{:02x}", b)).collect();
         let result = hex_strings.join("");
         let vec = deserialize(&value);
-        println!("Key: {}\nValue: {:?}", result, vec.payload);
+        println!("Key: {:?}\nValue: {:?}", result, vec.payload);
     }
 }
 
 fn get_from_database(database: &Database) {
     println!("Enter key of data");
     let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Failed to read key");
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read key");
     match database.get_data_from_key(input.trim()) {
-        Ok(v) =>
-            match v {
-                Ok(Some(v)) => println!("{:?}", v.payload),
-                Ok(None) => {
-                    println!("Key not found");
-                    return;
-                }
-                Err(e) => {
-                    println!("{}", e);
-                    return;
-                }
+        Ok(v) => match v {
+            Ok(Some(v)) => println!("{:?}", v.payload),
+            Ok(None) => {
+                println!("Key not found");
+                return;
             }
+            Err(e) => {
+                println!("{}", e);
+                return;
+            }
+        },
         Err(e) => {
             println!("{}", e);
             return;
@@ -297,12 +313,14 @@ fn get_from_database(database: &Database) {
     }
 }
 
-fn delete_from_database(database: &Database) {
+fn delete_from_database(database: &mut Database) {
     println!("(1) Delete by entering data");
     println!("(2) Delete by entering key");
 
     let mut choice = String::new();
-    io::stdin().read_line(&mut choice).expect("Failed to read line");
+    io::stdin()
+        .read_line(&mut choice)
+        .expect("Failed to read line");
     match choice.trim() {
         "1" => {
             let data: Data;
@@ -315,25 +333,32 @@ fn delete_from_database(database: &Database) {
                 }
             }
             match database.delete_from_database_with_value(data) {
-                Ok(v) =>
-                    match v {
-                        Some(_) => println!("Data deleted successfully"),
-                        None => println!("Key not found"),
+                Ok(v) => match v {
+                    Some(_) => {
+                        println!("Data deleted successfully");
+                        //change this function to delete from data
+                        // database.tree.delete_node(input.trim().to_string());
                     }
+                    None => println!("Key not found"),
+                },
                 Err(e) => println!("{}", e),
             };
         }
         "2" => {
             println!("Enter key");
             let mut input = String::new();
-            io::stdin().read_line(&mut input).expect("Failed to read line");
+            io::stdin()
+                .read_line(&mut input)
+                .expect("Failed to read line");
             match database.delete_from_database_with_key(input.trim()) {
-                Ok(v) =>
-                    match v {
-                        Ok(Some(_)) => println!("Data deleted successfully"),
-                        Ok(None) => println!("Key not found"),
-                        Err(e) => println!("{}", e),
+                Ok(v) => match v {
+                    Ok(Some(_)) => {
+                        println!("Data deleted successfully");
+                        database.tree.delete_node(input.trim().to_string());
                     }
+                    Ok(None) => println!("Key not found"),
+                    Err(e) => println!("{}", e),
+                },
                 Err(e) => println!("{}", e),
             };
         }
@@ -347,7 +372,9 @@ fn delete_from_database(database: &Database) {
 fn read_data() -> Option<Data> {
     println!("Enter data type (Text, Image, Audio, Blob): ");
     let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Failed to read line");
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read line");
     // match statement to match datatype from Datatype
     let datatype = match input.trim() {
         "Text" => DataType::Text,
@@ -361,12 +388,16 @@ fn read_data() -> Option<Data> {
     };
     println!("Enter payload: ");
     let mut payload = String::new();
-    io::stdin().read_line(&mut payload).expect("Failed to read line");
+    io::stdin()
+        .read_line(&mut payload)
+        .expect("Failed to read line");
 
     let mut embedding_type = String::new();
     println!("Enter embedding type: ");
-    io::stdin().read_line(&mut embedding_type).expect("Failed to read line");
-    
+    io::stdin()
+        .read_line(&mut embedding_type)
+        .expect("Failed to read line");
+
     let vec = vectoriser::vectorise(&payload, "");
 
     let data: Data = Data {
@@ -384,7 +415,9 @@ fn read_data() -> Option<Data> {
     println!("(0) Cancel");
 
     let mut choice = String::new();
-    io::stdin().read_line(&mut choice).expect("Failed to read line");
+    io::stdin()
+        .read_line(&mut choice)
+        .expect("Failed to read line");
 
     match choice.trim() {
         "1" => {
@@ -399,41 +432,45 @@ fn read_data() -> Option<Data> {
     };
 }
 
-
-
-fn find_knn(database: &Database) {
+fn find_knn(database: &mut Database) {
     println!("Please Select input for KNN");
     println!("(1) Enter Data");
     println!("(2) Enter Key");
     let givenvec;
     let mut choice = String::new();
-    io::stdin().read_line(&mut choice).expect("Failed to read line");
+    io::stdin()
+        .read_line(&mut choice)
+        .expect("Failed to read line");
     match choice.trim() {
         "1" => {
             let mut payload = String::new();
-            io::stdin().read_line(&mut payload).expect("Failed to read line");
+            io::stdin()
+                .read_line(&mut payload)
+                .expect("Failed to read line");
             let vec = vectoriser::vectorise(&payload, "");
             givenvec = vec.vector;
+            println!("{:?}", givenvec)
         }
         "2" => {
             println!("Enter key");
             let mut input = String::new();
-            io::stdin().read_line(&mut input).expect("Failed to read line");
+            io::stdin()
+                .read_line(&mut input)
+                .expect("Failed to read line");
             match database.get_data_from_key(input.trim()) {
-                Ok(v) =>
-                    match v {
-                        Ok(Some(v)) => {
-                            givenvec = v.vector.vector;
-                        }
-                        Ok(None) => {
-                            println!("Key not found");
-                            return;
-                        }
-                        Err(e) => {
-                            println!("{}", e);
-                            return;
-                        }
+                Ok(v) => match v {
+                    Ok(Some(v)) => {
+                        givenvec = v.vector.vector;
                     }
+                    Ok(None) => {
+                        println!("Key not found");
+                        return;
+                    }
+                    Err(e) => {
+                        println!("{}", e);
+                        return;
+                    }
+                },
                 Err(e) => {
                     println!("{}", e);
                     return;
@@ -449,7 +486,9 @@ fn find_knn(database: &Database) {
     println!("Please Enter K Value");
 
     let mut kvalue = String::new();
-    io::stdin().read_line(&mut kvalue).expect("Failed to read line");
+    io::stdin()
+        .read_line(&mut kvalue)
+        .expect("Failed to read line");
     let kvalue: usize = kvalue.trim().parse().unwrap();
 
     loop {
@@ -460,31 +499,33 @@ fn find_knn(database: &Database) {
         println!("(4) Cosine Similarity");
 
         let mut choice = String::new();
-        io::stdin().read_line(&mut choice).expect("Failed to read line");
+        io::stdin()
+            .read_line(&mut choice)
+            .expect("Failed to read line");
         match choice.trim() {
             "1" => {
-                let result = get_euclidean_knn(database, &givenvec, kvalue);
+                let result = get_knn(database, givenvec, kvalue, KNNType::Euclidean);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "2" => {
-                let result = get_manhattan_knn(database, &givenvec, kvalue);
+                let result = get_knn(database, givenvec, kvalue, KNNType::Manhattan);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "3" => {
-                let result = get_hamming_knn(database, &givenvec, kvalue);
+                let result = get_knn(database, givenvec, kvalue, KNNType::Hamming);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "4" => {
-                let result = get_cosine_knn(database, &givenvec, kvalue);
+                let result = get_knn(database, givenvec, kvalue, KNNType::Cosine);
                 for r in &result {
                     println!("{}", r);
                 }
@@ -500,4 +541,3 @@ fn find_knn(database: &Database) {
 fn view_current_path(database: &Database) {
     println!("{}", database.get_current_path());
 }
-
