@@ -2,10 +2,11 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::database::types;
+    use crate::indexer::kd_tree;
     use kd_tree::KDTree;
-    use types::{Data, DataType, VectorData};
     use rand::prelude::*;
-    use crate::{kd_tree, types};
+    use types::{Data, DataType, VectorData};
 
     #[test]
     fn test_text() {
@@ -92,7 +93,7 @@ mod tests {
     fn rebuild_check() {
         let mut tree = KDTree::new();
         tree.dim = 3;
-        for _ in 0..12{
+        for _ in 0..12 {
             let data = random_data(3);
             tree.add_node((String::from("test"), data.vector.vector), 0);
         }

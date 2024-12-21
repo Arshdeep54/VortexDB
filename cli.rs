@@ -1,9 +1,6 @@
-use crate::db;
-use crate::dbpath;
-use crate::indexing;
-use crate::keygen;
-use crate::types;
-use crate::vectoriser;
+use crate::database::{db, dbpath, keygen, types};
+use crate::indexer::indexing;
+use crate::vectorisers::vectoriser;
 
 use std::collections::HashMap;
 use std::{env, io};

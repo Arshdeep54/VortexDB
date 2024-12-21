@@ -1,12 +1,8 @@
 mod cli;
-mod indexing;
-mod kd_tree;
-mod keygen;
+mod database;
+mod indexer;
 mod testing;
-mod types;
-mod dbpath;
-mod vectoriser;
-mod db;
+mod vectorisers;
 fn main() {
     cli::run_cli();
 }

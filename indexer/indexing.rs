@@ -1,5 +1,5 @@
-use crate::db::Database;
-use crate::kd_tree::KDTreeNode;
+use crate::database::db::Database;
+use crate::indexer::kd_tree::KDTreeNode;
 use core::f32;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;

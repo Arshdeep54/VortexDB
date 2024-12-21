@@ -1,7 +1,7 @@
 //For rocks-db
-use super::types::Data;
-use crate::kd_tree::KDTree;
-use crate::keygen::*;
+use crate::database::keygen::*;
+use crate::database::types::Data;
+use crate::indexer::kd_tree::KDTree;
 use hex::{decode, FromHexError as hexerr};
 use rocksdb::{
     DBWithThreadMode,
@@ -67,7 +67,8 @@ impl Database {
         let key_string = format!("{:x}", key);
         match self.db.put(&key, value.as_ref() as &[u8]) {
             Ok(_) => {
-                self.tree.add_node((key_string.clone(),data.vector.vector), 0);
+                self.tree
+                    .add_node((key_string.clone(), data.vector.vector), 0);
                 return Ok(key_string);
             }
             Err(e) => {
