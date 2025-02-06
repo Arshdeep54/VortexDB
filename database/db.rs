@@ -1,28 +1,24 @@
-//For rocks-db
 use crate::database::keygen::*;
 use crate::database::types::Data;
 use crate::indexer::kd_tree::KDTree;
 use hex::{decode, FromHexError as hexerr};
-use rocksdb::{
-    DBWithThreadMode,
-    Error as err,
-    IteratorMode,
-    Options,
-    // WriteBatch,
-    // DBPinnableSlice,
-    SingleThreaded,
-    DB,
-};
+use rocksdb::backup::{BackupEngine, BackupEngineOptions, RestoreOptions};
+use rocksdb::{DBWithThreadMode, Error as err, IteratorMode, Options, SingleThreaded, DB};
 use sha2::{Digest, Sha256};
 
 pub struct Database {
     pub db: DBWithThreadMode<SingleThreaded>,
-    pub path: String,
+    pub name: String,
+    pub backup_path: String,
+    pub backup_engine: BackupEngine,
+    pub wal_ttl: u64,
     pub tree: KDTree,
 }
 
+const WAL_TTL: u64 = 24 * 60 * 60;
+
 impl Database {
-    pub fn create_switch_database(addr: String) -> Result<Database, err> {
+    pub fn create_database(name: &str, path: &str) -> Result<Database, err> {
         let mut options = Options::default();
 
         //Optimize RocksDB
@@ -32,10 +28,23 @@ impl Database {
         //Create the database if not already present
         options.create_if_missing(true);
 
+        options.set_wal_dir(path.trim());
+        options.set_wal_ttl_seconds(WAL_TTL);
+
+        // Open the DB using tmpfs
+        let db = rocksdb::DB::open(&options, format!("/tmp/{}", name.trim())).unwrap();
+
+        let backup_engine_options = BackupEngineOptions::new(path.trim()).unwrap();
+        let backup_env = rocksdb::Env::new().unwrap();
+        let backup_engine = BackupEngine::open(&backup_engine_options, &backup_env).unwrap();
+
         //Open the database
         let mut database = Database {
-            db: DB::open(&options, &addr).unwrap(),
-            path: addr,
+            db: db,
+            name: name.to_string(),
+            backup_path: path.to_string(),
+            backup_engine: backup_engine,
+            wal_ttl: WAL_TTL,
             tree: KDTree::new(),
         };
 
@@ -55,8 +64,23 @@ impl Database {
         return Ok(database);
     }
 
+    pub fn open_database(name: &str, path: &str) -> Result<Database, err> {
+        let backup_engine_options = BackupEngineOptions::new(path.trim()).unwrap();
+        let backup_env = rocksdb::Env::new().unwrap();
+        let mut backup_engine = BackupEngine::open(&backup_engine_options, &backup_env).unwrap();
+        let mut restore_options = RestoreOptions::default();
+
+        restore_options.set_keep_log_files(true);
+
+        backup_engine
+            .restore_from_latest_backup(format!("/tmp/{}", name), &path, &restore_options)
+            .unwrap();
+
+        Database::create_database(name, path)
+    }
+
     pub fn get_current_path(&self) -> String {
-        return self.path.clone();
+        return self.backup_path.clone();
     }
 
     pub fn insert_in_database(&mut self, data: Data) -> Result<String, err> {
@@ -79,7 +103,7 @@ impl Database {
 
     pub fn delete_database(&self) -> Result<(), err> {
         let options = Options::default();
-        match DB::destroy(&options, &self.path) {
+        match DB::destroy(&options, format!("tmp/{}", self.name)) {
             Ok(()) => {
                 return Ok(());
             }
