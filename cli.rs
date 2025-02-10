@@ -2,13 +2,12 @@ use crate::database::{db, dbpath, keygen, types};
 use crate::indexer::indexing;
 use crate::vectorisers::vectoriser;
 
-use std::collections::HashMap;
-use std::{env, io};
-// use std::ops::Deref;
 use db::Database;
 use dbpath::{check_database, check_path, find_databases, write_env};
 use indexing::{get_knn, KNNType};
 use keygen::deserialize;
+use std::collections::HashMap;
+use std::{env, io};
 use types::{Data, DataType, VectorData};
 
 use rocksdb::IteratorMode;
@@ -72,7 +71,7 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         .expect("Faile to read line");
 
     if !databases.contains_key(input.trim()) {
-        println!("Database does not exitst");
+        println!("Database does not exist!");
         return;
     }
 
@@ -132,7 +131,7 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
 }
 
 fn add_databases(mut databases: &mut HashMap<String, String>) {
-    println!("Enter the databse name");
+    println!("Enter the database name");
     let mut name = String::new();
     io::stdin()
         .read_line(&mut name)
@@ -170,17 +169,27 @@ fn delete_databases(mut databases: &mut HashMap<String, String>) {
 fn valid_database(databases: &mut HashMap<String, String>, input: &str) -> Option<Database> {
     let file_path = databases.get(input).unwrap();
     let mut database: Option<Database> = None;
-    if check_path(file_path) {
+    if check_path(&file_path) {
         println!("Path is valid, validating database...");
         if check_database(file_path) {
             println!("Database exists on current path");
-            let new_path = (*file_path).clone();
-            database = Some(create_switch_database(new_path));
+
+            match Database::open_database(input, file_path) {
+                Ok(db) => {
+                    database = Some(db);
+                }
+                Err(err) => panic!("Failed to create database as {:?}", err),
+            };
         } else {
             println!("Database does not exist on current path.");
             println!("Creating a new database...");
-            let new_path = (*file_path).clone();
-            database = Some(create_switch_database(new_path));
+
+            match Database::create_database(input, file_path) {
+                Ok(db) => {
+                    database = Some(db);
+                }
+                Err(err) => panic!("Failed to create database as {:?}", err),
+            };
         }
     } else {
         println!("Path in .env file is invalid");
@@ -235,15 +244,6 @@ fn change_path(databases: &mut HashMap<String, String>, input: &str) -> bool {
         };
     }
     return br;
-}
-
-fn create_switch_database(addr: String) -> Database {
-    match Database::create_switch_database(addr) {
-        Ok(database) => {
-            return database;
-        }
-        Err(err) => panic!("Failed to create database as {:?}", err),
-    };
 }
 
 fn delete_database(database: &Database) {
