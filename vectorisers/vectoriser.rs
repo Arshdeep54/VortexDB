@@ -51,7 +51,13 @@ pub fn read_from_named_pipe() {
     }
 
     // Open the named pipe for reading
-    let pipe = File::open(PIPE_PATH).expect("Failed to open named pipe");
+    let pipe = match File::open(PIPE_PATH) {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("Failed to open named pipe: {}", e);
+            return;
+        }
+    };
     let reader = BufReader::new(pipe);
 
     // Continuously read from the pipe
