@@ -1,8 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-
-
+from vectorisers.decorators import vector_output
 
 from transformers import AutoTokenizer, AutoModel
 import torch
@@ -26,14 +25,19 @@ def mean_pooling(model_output, attention_mask):
 
 
 # Load model from HuggingFace Hub
-tokenizer = AutoTokenizer.from_pretrained('sentence-transformers/all-mpnet-base-v2', torch_dtype=torch.float16, clean_up_tokenization_spaces = True)
+tokenizer = AutoTokenizer.from_pretrained(
+    'sentence-transformers/all-mpnet-base-v2',
+    torch_dtype=torch.float16,
+    clean_up_tokenization_spaces=True
+)
 model = AutoModel.from_pretrained('sentence-transformers/all-mpnet-base-v2', torch_dtype=torch.float16)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(device)
 model = model.to(device)
 
-print("model ready for inference")
+print("Model ready for inference")
+
 
 def generate_embeddings_single(sentence, config: VectorInputConfig):
     sentences = [sentence]
@@ -45,36 +49,37 @@ def generate_embeddings_batch(sentences, config: VectorInputConfig):
     encoded_input = tokenizer(sentences, padding=True, truncation=True, return_tensors='pt').to(device)
     with torch.inference_mode():
         model_output = model(**encoded_input)
-    
+
     if config.pooling_strategy == 'mean':
         sentence_embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
     else:
         raise ValueError(f"Pooling strategy {config.pooling_strategy} not supported.")
-    
+
     sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
     return sentence_embeddings
 
 
 app = FastAPI()
 
-class SentenceInput(BaseModel):
-    sentence: str
-
 @app.post("/vectorize/")
 @app.post("/vectorize")
+@vector_output
 async def vectorize(input: VectorInput):
     try:
-        SentenceInput = input.text
-        config = input.config
-        sentence_embeddings = generate_embeddings_single(SentenceInput, config)
+        sentence = input.text
+        config = input.config or VectorInputConfig(pooling_strategy='mean')  # Default pooling strategy
         
-        vectorize_handler = sentence_embeddings.cpu().tolist()
-        vectorize_handler = vectorize_handler[0]
+        # Generate embeddings
+        sentence_embeddings = generate_embeddings_single(sentence, config)
         
-        return {"text":input.text,"vector": vectorize_handler, "dim": len(vectorize_handler)}
+        # Convert to list and extract the first vector
+        vector = sentence_embeddings.cpu().tolist()[0]
+        
+        # Return only the vector for the decorator
+        return vector
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-        
+
 
 if __name__ == "__main__":
     import uvicorn
