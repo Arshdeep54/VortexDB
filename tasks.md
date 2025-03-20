@@ -1,0 +1,21 @@
+- [ ] Frontend
+	- [ ] Finalize framework
+	- [ ] Define screens (concrete wireframes)
+	- [ ] Develop them
+- [ ] Refactor Code
+	- [ ] Change the directory structure
+	- [ ] Code architecture
+		- [ ] Define proper types
+		- [ ] Define proper traits
+	- [ ] Make it run end to end (this includes)
+		- [ ] From the CLI/API/SDK
+		- [ ] Call the external vectorizer s.mdervice
+		- [ ] Pass embeddings through the processes/services via protobufs
+		- [ ] Data should be stored in rocksdb (embedding and original data)
+- [ ] Additional Tasks
+	- [ ] Implement better indexing algorithms
+	- [ ] Endpoints
+		- [ ] gRPC
+		- [ ] REST
+	- [ ] PCA
+	- [ ] Final Design and implementation
