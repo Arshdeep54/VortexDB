@@ -4,7 +4,7 @@ use crate::vectorisers::vectoriser;
 
 use db::Database;
 use dbpath::{check_database, check_path, find_databases, write_env};
-use indexing::{get_knn, KNNType};
+use indexing::{get_knn, KNNType, Indexer};
 use keygen::deserialize;
 use std::collections::HashMap;
 use std::{env, io};

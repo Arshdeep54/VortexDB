@@ -1,6 +1,7 @@
 use crate::database::keygen::*;
 use crate::database::types::Data;
-use crate::indexer::kd_tree::KDTree;
+use crate::indexer::indexing_models::kd_tree::KDTree;
+use crate::indexer::indexing::Indexer;
 use hex::{decode, FromHexError as hexerr};
 use rocksdb::backup::{BackupEngine, BackupEngineOptions, RestoreOptions};
 use rocksdb::{DBWithThreadMode, Error as err, IteratorMode, Options, SingleThreaded, DB};

@@ -3,7 +3,8 @@
 #[cfg(test)]
 mod tests {
     use crate::database::types;
-    use crate::indexer::kd_tree;
+    use crate::indexer::indexing_models::kd_tree;
+    use crate::indexer::indexing::Indexer;
     use kd_tree::KDTree;
     use rand::prelude::*;
     use types::{Data, DataType, VectorData};

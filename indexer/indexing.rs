@@ -1,8 +1,8 @@
-use crate::database::db::Database;
-use crate::indexer::kd_tree::KDTreeNode;
+// use crate::database::db::Database;
 use core::f32;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use crate::database::db::Database;
 
 #[derive(Clone, Copy)]
 pub enum KNNType {
@@ -13,8 +13,8 @@ pub enum KNNType {
 }
 
 pub struct DataHeap {
-    key: String,
-    distance: f32,
+    pub key: String,
+    pub distance: f32,
 }
 
 // These traits must be implemented for a custom BinaryHeap
@@ -41,7 +41,7 @@ impl PartialOrd for DataHeap {
     }
 }
 
-fn distance(a: Vec<f32>, b: Vec<f32>, dist_type: KNNType) -> f32 {
+pub fn distance(a: Vec<f32>, b: Vec<f32>, dist_type: KNNType) -> f32 {
     assert_eq!(a.len(), b.len());
     match dist_type {
         KNNType::Euclidean => {
@@ -105,79 +105,26 @@ pub fn get_knn(
     return ret_vec;
 }
 
-impl KDTreeNode {
-    pub fn find_nearest_neighbors<'a>(
+pub trait Indexer {
+    fn new() -> Self;
+    fn add_node(&mut self, data: (String, Vec<f32>), depth: usize);
+    fn delete_node(&mut self, data: String);
+    fn print_tree_for_debug(&self);
+
+    // Functions for communicating with vectoriser and database
+}
+
+pub trait Node {
+    // Getter methods to ensure Node contains the necessary information
+    fn left(&self) -> Option<&dyn Node>;
+    fn right(&self) -> Option<&dyn Node>;
+    fn key(&self) -> &str;
+    fn vector(&self) -> &Vec<f32>;
+
+    fn find_nearest_neighbors<'a>(
         &'a self,
-        point: Vec<f32>,
+        input: Vec<f32>,
         knn_type: KNNType,
         heap: &'a mut BinaryHeap<DataHeap>,
-    ) -> (&'a mut BinaryHeap<DataHeap>, usize) {
-        self.find_nearest_neighbor_helper(point, 1, knn_type, heap)
-    }
-
-    fn find_nearest_neighbor_helper<'a>(
-        &'a self,
-        point: Vec<f32>,
-        n_visited: usize,
-        knn_type: KNNType,
-        distances: &'a mut BinaryHeap<DataHeap>,
-    ) -> (&'a mut BinaryHeap<DataHeap>, usize) {
-        if distances.is_empty() {
-            panic!("Empty heap entered!");
-        }
-
-        let mut my_n_visited = n_visited;
-        let mut my_distances = distances;
-
-        if self.vector[self.dim] < point[self.dim] && self.left.is_some() {
-            let (a, b) = self.left.as_ref().unwrap().find_nearest_neighbor_helper(
-                point.clone(),
-                my_n_visited,
-                knn_type,
-                my_distances,
-            );
-            my_distances = a;
-            my_n_visited = b;
-        }
-
-        // distance along this node's axis
-        let axis_dist = distance(point.clone(), self.vector.clone(), knn_type);
-        if axis_dist <= my_distances.peek().unwrap().distance {
-            // self can only be nearer than worst if axis_dist is less than worst_dist because axis_dist is a lower bound for self_dist
-            let self_dist = distance(point.clone(), self.vector.clone(), knn_type.clone());
-            if self_dist < my_distances.peek().unwrap().distance {
-                my_distances.pop();
-                my_distances.push(DataHeap {
-                    key: self.key.clone(),
-                    distance: self_dist,
-                });
-            }
-
-            // bookkeeping
-            my_n_visited += 1;
-
-            // same reasoning applies for the far side of the split
-            if self.vector[self.dim] < point[self.dim] && self.left.is_some() {
-                let (a, b) = self.left.as_ref().unwrap().find_nearest_neighbor_helper(
-                    point,
-                    my_n_visited,
-                    knn_type,
-                    my_distances,
-                );
-                my_distances = a;
-                my_n_visited = b;
-            } else if self.right.is_some() {
-                let (a, b) = self.right.as_ref().unwrap().find_nearest_neighbor_helper(
-                    point,
-                    my_n_visited,
-                    knn_type,
-                    my_distances,
-                );
-                my_distances = a;
-                my_n_visited = b;
-            }
-        }
-
-        (my_distances, my_n_visited)
-    }
+    ) -> (&'a mut BinaryHeap<DataHeap>, usize);
 }

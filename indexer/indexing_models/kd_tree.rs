@@ -1,7 +1,8 @@
+use crate::indexer::indexing::{distance, DataHeap, Indexer, KNNType, Node};
+use serde_derive::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::cmp::Ordering::Less;
-
-use serde_derive::{Deserialize, Serialize};
+use std::collections::BinaryHeap;
 
 #[derive(Serialize, Deserialize)]
 pub struct KDTreeInternals {
@@ -14,23 +15,115 @@ pub struct KDTreeInternals {
 
 #[derive(Serialize, Deserialize)]
 pub struct KDTreeNode {
-    pub left: Option<Box<KDTreeNode>>,
-    pub right: Option<Box<KDTreeNode>>,
     pub key: String,
     pub vector: Vec<f32>,
+    pub left: Option<Box<KDTreeNode>>,
+    pub right: Option<Box<KDTreeNode>>,
     pub dim: usize,
 }
 
+impl Node for KDTreeNode {
+    fn left(&self) -> Option<&dyn Node> {
+        self.left.as_deref().map(|x| x as &dyn Node)
+    }
+
+    fn right(&self) -> Option<&dyn Node> {
+        self.right.as_deref().map(|x| x as &dyn Node)
+    }
+
+    fn key(&self) -> &str {
+        &self.key
+    }
+
+    fn vector(&self) -> &Vec<f32> {
+        &self.vector
+    }
+
+    fn find_nearest_neighbors<'a>(
+        &'a self,
+        point: Vec<f32>,
+        knn_type: KNNType,
+        heap: &'a mut BinaryHeap<DataHeap>,
+    ) -> (&'a mut BinaryHeap<DataHeap>, usize) {
+        self.find_nearest_neighbor_helper(point, 1, knn_type, heap)
+    }
+}
+
 impl KDTreeNode {
-    // Add the logic here to create a new db and insert the tree into the database
-    fn new(data: (String, Vec<f32>), dim: usize) -> KDTreeNode {
+    pub fn new(data: (String, Vec<f32>), dim: usize) -> KDTreeNode {
         KDTreeNode {
-            left: None,
-            right: None,
             key: data.0,
             vector: data.1,
+            left: None,
+            right: None,
             dim,
         }
+    }
+
+    fn find_nearest_neighbor_helper<'a>(
+        &'a self,
+        point: Vec<f32>,
+        n_visited: usize,
+        knn_type: KNNType,
+        distances: &'a mut BinaryHeap<DataHeap>,
+    ) -> (&'a mut BinaryHeap<DataHeap>, usize) {
+        if distances.is_empty() {
+            panic!("Empty heap entered!");
+        }
+
+        let mut my_n_visited = n_visited;
+        let mut my_distances = distances;
+
+        if self.vector[self.dim] < point[self.dim] && self.left.is_some() {
+            let (a, b) = self.left.as_ref().unwrap().find_nearest_neighbor_helper(
+                point.clone(),
+                my_n_visited,
+                knn_type,
+                my_distances,
+            );
+            my_distances = a;
+            my_n_visited = b;
+        }
+
+        // distance along this node's axis
+        let axis_dist = distance(point.clone(), self.vector.clone(), knn_type);
+        if axis_dist <= my_distances.peek().unwrap().distance {
+            // self can only be nearer than worst if axis_dist is less than worst_dist because axis_dist is a lower bound for self_dist
+            let self_dist = distance(point.clone(), self.vector.clone(), knn_type.clone());
+            if self_dist < my_distances.peek().unwrap().distance {
+                my_distances.pop();
+                my_distances.push(DataHeap {
+                    key: self.key.clone(),
+                    distance: self_dist,
+                });
+            }
+
+            // bookkeeping
+            my_n_visited += 1;
+
+            // same reasoning applies for the far side of the split
+            if self.vector[self.dim] < point[self.dim] && self.left.is_some() {
+                let (a, b) = self.left.as_ref().unwrap().find_nearest_neighbor_helper(
+                    point,
+                    my_n_visited,
+                    knn_type,
+                    my_distances,
+                );
+                my_distances = a;
+                my_n_visited = b;
+            } else if self.right.is_some() {
+                let (a, b) = self.right.as_ref().unwrap().find_nearest_neighbor_helper(
+                    point,
+                    my_n_visited,
+                    knn_type,
+                    my_distances,
+                );
+                my_distances = a;
+                my_n_visited = b;
+            }
+        }
+
+        (my_distances, my_n_visited)
     }
 }
 
@@ -41,9 +134,9 @@ pub struct KDTree {
     pub dim: usize,
 }
 
-impl KDTree {
+impl Indexer for KDTree {
     // Create an empty tree with default values
-    pub fn new() -> KDTree {
+    fn new() -> KDTree {
         KDTree {
             _root: None,
             _internals: KDTreeInternals {
@@ -60,7 +153,7 @@ impl KDTree {
 
     // Add a node
     // If the dimension of the tree is zero, then it becomes equal to the input data
-    pub fn add_node(&mut self, data: (String, Vec<f32>), depth: usize) {
+    fn add_node(&mut self, data: (String, Vec<f32>), depth: usize) {
         if self._root.is_none() {
             self.dim = data.1.len();
             self._root = Some(Box::new(KDTreeNode::new(data, 0)));
@@ -113,6 +206,29 @@ impl KDTree {
         }
     }
 
+    // delete a node
+    fn delete_node(&mut self, data: String) {
+        self._internals.kd_tree_allow_update = false;
+        let mut points = self.traversal(0);
+        let index = points.iter().position(|x| *x.0 == data).unwrap();
+        points.remove(index);
+        let mut points = Vec::into_boxed_slice(points);
+        self._root = Some(Box::new(create_tree_helper(points.as_mut(), 0)));
+        self._internals.kd_tree_allow_update = true;
+    }
+
+    // print data for debug
+    fn print_tree_for_debug(&self) {
+        let iterated: Vec<(String, Vec<f32>)> = self.traversal(0);
+        for iter in iterated {
+            println!("{}", iter.0);
+        }
+    }
+
+    // different methods of knn
+}
+
+impl KDTree {
     // rebuild tree
     fn rebuild(&mut self) {
         self._internals.kd_tree_allow_update = false;
@@ -134,27 +250,6 @@ impl KDTree {
         inorder_traversal_helper(self._root.as_deref(), &mut result, k_value);
         result
     }
-
-    // delete a node
-    pub fn delete_node(&mut self, data: String) {
-        self._internals.kd_tree_allow_update = false;
-        let mut points = self.traversal(0);
-        let index = points.iter().position(|x| *x.0 == data).unwrap();
-        points.remove(index);
-        let mut points = Vec::into_boxed_slice(points);
-        self._root = Some(Box::new(create_tree_helper(points.as_mut(), 0)));
-        self._internals.kd_tree_allow_update = true;
-    }
-
-    // print data for debug
-    pub fn print_tree_for_debug(&self) {
-        let iterated: Vec<(String, Vec<f32>)> = self.traversal(0);
-        for iter in iterated {
-            println!("{}", iter.0);
-        }
-    }
-
-    // different methods of knn
 }
 
 // Traversal helper function
@@ -213,7 +308,7 @@ fn create_tree_helper(points: &mut [(String, Vec<f32>)], dim: usize) -> KDTreeNo
         vector: pivot.1,
         left,
         right,
-        dim,
+        dim
     }
 }
 
