@@ -1,25 +1,25 @@
 use crate::database::keygen::*;
 use crate::database::types::Data;
-use crate::indexer::indexing_models::kd_tree::KDTree;
 use crate::indexer::indexing::Indexer;
 use hex::{decode, FromHexError as hexerr};
 use rocksdb::backup::{BackupEngine, BackupEngineOptions, RestoreOptions};
 use rocksdb::{DBWithThreadMode, Error as err, IteratorMode, Options, SingleThreaded, DB};
 use sha2::{Digest, Sha256};
+use std::any::type_name;
 
-pub struct Database {
+pub struct Database<T: Indexer> {
     pub db: DBWithThreadMode<SingleThreaded>,
     pub name: String,
     pub backup_path: String,
     pub backup_engine: BackupEngine,
     pub wal_ttl: u64,
-    pub tree: KDTree,
+    pub tree: T,
 }
 
 const WAL_TTL: u64 = 24 * 60 * 60;
 
-impl Database {
-    pub fn create_database(name: &str, path: &str) -> Result<Database, err> {
+impl<T: Indexer> Database<T> {
+    pub fn create_database(name: &str, path: &str) -> Result<Database<T>, err> {
         let mut options = Options::default();
 
         //Optimize RocksDB
@@ -46,7 +46,7 @@ impl Database {
             backup_path: path.to_string(),
             backup_engine: backup_engine,
             wal_ttl: WAL_TTL,
-            tree: KDTree::new(),
+            tree: T::new(),
         };
 
         // Build the KD-Tree
@@ -65,7 +65,7 @@ impl Database {
         return Ok(database);
     }
 
-    pub fn open_database(name: &str, path: &str) -> Result<Database, err> {
+    pub fn open_database(name: &str, path: &str) -> Result<Database<T>, err> {
         let backup_engine_options = BackupEngineOptions::new(path.trim()).unwrap();
         let backup_env = rocksdb::Env::new().unwrap();
         let mut backup_engine = BackupEngine::open(&backup_engine_options, &backup_env).unwrap();
@@ -180,5 +180,9 @@ impl Database {
                 return Err(e);
             }
         }
+    }
+
+    pub fn get_indexer_type(&self) -> String {
+        return type_name::<T>().to_string();
     }
 }

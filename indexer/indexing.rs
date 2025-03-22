@@ -80,8 +80,8 @@ pub fn distance(a: Vec<f32>, b: Vec<f32>, dist_type: KNNType) -> f32 {
     };
 }
 
-pub fn get_knn(
-    database: &mut Database,
+pub fn get_knn<T: Indexer>(
+    database: &mut Database<T>,
     input: Vec<f32>,
     kvalue: usize,
     knn_type: KNNType,
@@ -95,7 +95,8 @@ pub fn get_knn(
             distance: distance(input.clone(), node.1.clone(), knn_type),
         });
     }
-    let binding = database.tree._root.as_ref().unwrap();
+    let root = database.tree._root();
+    let binding = root.as_ref().unwrap();
     let (heap, n_visited) = binding.find_nearest_neighbors(input, knn_type, &mut insert_heap);
     let mut ret_vec: Vec<String> = Vec::new();
     ret_vec.push(format!("Visited {} nodes", n_visited));
@@ -106,20 +107,22 @@ pub fn get_knn(
 }
 
 pub trait Indexer {
-    fn new() -> Self;
+    fn new() -> Self where Self: Sized;
     fn add_node(&mut self, data: (String, Vec<f32>), depth: usize);
     fn delete_node(&mut self, data: String);
     fn print_tree_for_debug(&self);
+    fn traversal(&self, k_value: usize) -> Vec<(String, Vec<f32>)>;
+    fn _root(&self) -> Option<&dyn Node>;
 
     // Functions for communicating with vectoriser and database
 }
 
 pub trait Node {
     // Getter methods to ensure Node contains the necessary information
-    fn left(&self) -> Option<&dyn Node>;
-    fn right(&self) -> Option<&dyn Node>;
-    fn key(&self) -> &str;
-    fn vector(&self) -> &Vec<f32>;
+    fn _left(&self) -> Option<&dyn Node>;
+    fn _right(&self) -> Option<&dyn Node>;
+    fn _key(&self) -> &str;
+    fn _vector(&self) -> &Vec<f32>;
 
     fn find_nearest_neighbors<'a>(
         &'a self,

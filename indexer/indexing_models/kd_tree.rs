@@ -23,19 +23,19 @@ pub struct KDTreeNode {
 }
 
 impl Node for KDTreeNode {
-    fn left(&self) -> Option<&dyn Node> {
+    fn _left(&self) -> Option<&dyn Node> {
         self.left.as_deref().map(|x| x as &dyn Node)
     }
 
-    fn right(&self) -> Option<&dyn Node> {
+    fn _right(&self) -> Option<&dyn Node> {
         self.right.as_deref().map(|x| x as &dyn Node)
     }
 
-    fn key(&self) -> &str {
+    fn _key(&self) -> &str {
         &self.key
     }
 
-    fn vector(&self) -> &Vec<f32> {
+    fn _vector(&self) -> &Vec<f32> {
         &self.vector
     }
 
@@ -225,7 +225,16 @@ impl Indexer for KDTree {
         }
     }
 
-    // different methods of knn
+    // traversal
+    fn traversal(&self, k_value: usize) -> Vec<(String, Vec<f32>)> {
+        let mut result: Vec<(String, Vec<f32>)> = Vec::new();
+        inorder_traversal_helper(self._root.as_deref(), &mut result, k_value);
+        result
+    }
+
+    fn _root(&self) -> Option<&dyn Node> {
+        self._root.as_deref().map(|x| x as &dyn Node)
+    }
 }
 
 impl KDTree {
@@ -242,13 +251,6 @@ impl KDTree {
         let mut points = Vec::into_boxed_slice(self.traversal(0));
         self._root = Some(Box::new(create_tree_helper(points.as_mut(), 0)));
         self._internals.kd_tree_allow_update = true;
-    }
-
-    // traversal
-    pub fn traversal(&self, k_value: usize) -> Vec<(String, Vec<f32>)> {
-        let mut result: Vec<(String, Vec<f32>)> = Vec::new();
-        inorder_traversal_helper(self._root.as_deref(), &mut result, k_value);
-        result
     }
 }
 
@@ -308,7 +310,7 @@ fn create_tree_helper(points: &mut [(String, Vec<f32>)], dim: usize) -> KDTreeNo
         vector: pivot.1,
         left,
         right,
-        dim
+        dim,
     }
 }
 
