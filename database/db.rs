@@ -1,25 +1,24 @@
 use crate::database::keygen::*;
 use crate::database::types::Data;
-use crate::indexer::indexing::Indexer;
 use hex::{decode, FromHexError as hexerr};
 use rocksdb::backup::{BackupEngine, BackupEngineOptions, RestoreOptions};
 use rocksdb::{DBWithThreadMode, Error as err, IteratorMode, Options, SingleThreaded, DB};
 use sha2::{Digest, Sha256};
 use std::any::type_name;
+use crate::database::db_thread;
 
-pub struct Database<T: Indexer> {
+pub struct Database {
     pub db: DBWithThreadMode<SingleThreaded>,
     pub name: String,
     pub backup_path: String,
     pub backup_engine: BackupEngine,
     pub wal_ttl: u64,
-    pub tree: T,
 }
 
 const WAL_TTL: u64 = 24 * 60 * 60;
 
-impl<T: Indexer> Database<T> {
-    pub fn create_database(name: &str, path: &str) -> Result<Database<T>, err> {
+impl Database {
+    pub fn create_database(name: &str, path: &str) -> Result<Database, err> {
         let mut options = Options::default();
 
         //Optimize RocksDB
@@ -46,7 +45,6 @@ impl<T: Indexer> Database<T> {
             backup_path: path.to_string(),
             backup_engine: backup_engine,
             wal_ttl: WAL_TTL,
-            tree: T::new(),
         };
 
         // Build the KD-Tree
@@ -57,15 +55,22 @@ impl<T: Indexer> Database<T> {
             let hex_strings: Vec<String> = key.iter().map(|b| format!("{:02x}", b)).collect();
             let result = hex_strings.join("");
             let vec = deserialize(&value);
-            database.tree.add_node((result, vec.vector.vector), 0);
+            match db_thread::add_node_pipe((result, vec.vector.vector), 0) {
+                Ok(_) => (),
+                Err(e) => return Err(e),
+            }
         }
 
-        database.tree.print_tree_for_debug();
+        #[cfg(debug_assertions)]
+        match db_thread::print_tree_debug_pipe() {
+            Ok(_) => (),
+            Err(e) => return Err(e),
+        };
 
         return Ok(database);
     }
 
-    pub fn open_database(name: &str, path: &str) -> Result<Database<T>, err> {
+    pub fn open_database(name: &str, path: &str) -> Result<Database, err> {
         let backup_engine_options = BackupEngineOptions::new(path.trim()).unwrap();
         let backup_env = rocksdb::Env::new().unwrap();
         let mut backup_engine = BackupEngine::open(&backup_engine_options, &backup_env).unwrap();
@@ -92,8 +97,10 @@ impl<T: Indexer> Database<T> {
         let key_string = format!("{:x}", key);
         match self.db.put(&key, value.as_ref() as &[u8]) {
             Ok(_) => {
-                self.tree
-                    .add_node((key_string.clone(), data.vector.vector), 0);
+                match db_thread::add_node_pipe((key_string.clone(), data.vector.vector), 0) {
+                    Ok(_) => (),
+                    Err(e) => return Err(e),
+                };
                 return Ok(key_string);
             }
             Err(e) => {
@@ -123,7 +130,10 @@ impl<T: Indexer> Database<T> {
 
         match self.db.get(&key) {
             Ok(Some(_)) => {
-                self.tree.delete_node(key_string);
+                match db_thread::delete_node_pipe(key_string) {
+                    Ok(_) => (),
+                    Err(e) => return Err(e),
+                };
                 match self.db.delete(key) {
                     Ok(_) => Ok(Some(())),
                     Err(e) => Err(e),
@@ -145,7 +155,10 @@ impl<T: Indexer> Database<T> {
                 let key = bytes.into_boxed_slice();
                 match self.db.get(&key) {
                     Ok(Some(_)) => {
-                        self.tree.delete_node(input.to_string());
+                        match db_thread::delete_node_pipe(input.to_string()) {
+                            Ok(_) => (),
+                            Err(e) => return Err(e),
+                        };
                         match self.db.delete(key) {
                             Ok(_) => Ok(Ok(Some(()))),
                             Err(e) => Ok(Err(e)),
@@ -180,9 +193,5 @@ impl<T: Indexer> Database<T> {
                 return Err(e);
             }
         }
-    }
-
-    pub fn get_indexer_type(&self) -> String {
-        return type_name::<T>().to_string();
     }
 }
