@@ -1,2 +1,2 @@
 pub mod indexing;
-pub mod kd_tree;
+pub mod indexing_models;

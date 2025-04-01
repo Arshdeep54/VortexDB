@@ -1,10 +1,11 @@
 use crate::database::{db, dbpath, keygen, types};
 use crate::indexer::indexing;
+use crate::indexer::indexing_models::kd_tree::KDTree;
 use crate::vectorisers::vectoriser;
 
 use db::Database;
 use dbpath::{check_database, check_path, find_databases, write_env};
-use indexing::{get_knn, KNNType};
+use indexing::{get_knn, KNNType, Indexer};
 use keygen::deserialize;
 use std::collections::HashMap;
 use std::{env, io};
@@ -75,7 +76,8 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         return;
     }
 
-    let mut database: Option<Database> = valid_database(&mut databases, input.trim());
+    // TODO: This needs to be changed later
+    let mut database: Option<Database<KDTree>> = valid_database(&mut databases, input.trim());
 
     if database.is_none() {
         let exit = change_path(&mut databases, input.trim());
@@ -159,16 +161,17 @@ fn delete_databases(mut databases: &mut HashMap<String, String>) {
             return;
         }
 
-        let database = valid_database(&mut databases, input.trim()).unwrap();
+        // TODO: This needs to be changed later
+        let database = valid_database::<KDTree>(&mut databases, input.trim()).unwrap();
         delete_database(&database);
     } else {
         println!("Database does not exist");
     }
 }
 
-fn valid_database(databases: &mut HashMap<String, String>, input: &str) -> Option<Database> {
+fn valid_database<T: Indexer>(databases: &mut HashMap<String, String>, input: &str) -> Option<Database<T>> {
     let file_path = databases.get(input).unwrap();
-    let mut database: Option<Database> = None;
+    let mut database: Option<Database<T>> = None;
     if check_path(&file_path) {
         println!("Path is valid, validating database...");
         if check_database(file_path) {
@@ -246,7 +249,7 @@ fn change_path(databases: &mut HashMap<String, String>, input: &str) -> bool {
     return br;
 }
 
-fn delete_database(database: &Database) {
+fn delete_database<T: Indexer> (database: &Database<T>) {
     println!("Deleting database...");
     match database.delete_database() {
         Ok(()) => println!("Database deleted successfully"),
@@ -254,7 +257,7 @@ fn delete_database(database: &Database) {
     };
 }
 
-fn insert_in_database(database: &mut Database) {
+fn insert_in_database<T: Indexer> (database: &mut Database<T>) {
     let data: Data;
     match read_data() {
         Some(v) => {
@@ -273,7 +276,7 @@ fn insert_in_database(database: &mut Database) {
     };
 }
 
-fn view_database(database: &Database) {
+fn view_database<T: Indexer> (database: &Database<T>) {
     let iter = database.db.iterator(IteratorMode::Start); //iterates from the start
     println!("Iterating over database...");
     for item in iter {
@@ -285,7 +288,7 @@ fn view_database(database: &Database) {
     }
 }
 
-fn get_from_database(database: &Database) {
+fn get_from_database<T: Indexer> (database: &Database<T>) {
     println!("Enter key of data");
     let mut input = String::new();
     io::stdin()
@@ -310,7 +313,7 @@ fn get_from_database(database: &Database) {
     }
 }
 
-fn delete_from_database(database: &mut Database) {
+fn delete_from_database<T: Indexer> (database: &mut Database<T>) {
     println!("(1) Delete by entering data");
     println!("(2) Delete by entering key");
 
@@ -429,7 +432,7 @@ fn read_data() -> Option<Data> {
     };
 }
 
-fn find_knn(database: &mut Database) {
+fn find_knn<T: Indexer> (database: &mut Database<T>) {
     println!("Please Select input for KNN");
     println!("(1) Enter Data");
     println!("(2) Enter Key");
@@ -535,6 +538,6 @@ fn find_knn(database: &mut Database) {
     }
 }
 
-fn view_current_path(database: &Database) {
+fn view_current_path<T: Indexer> (database: &Database<T>) {
     println!("{}", database.get_current_path());
 }
