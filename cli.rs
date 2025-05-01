@@ -1,13 +1,13 @@
 use crate::database::{db, dbpath, keygen, types};
-use crate::indexer::indexing;
+use crate::indexer::indexing::{self, Indexer};
 use crate::indexer::indexing_models::kd_tree::KDTree;
 use crate::vectorisers::vectoriser;
-
 use db::Database;
 use dbpath::{check_database, check_path, find_databases, write_env};
-use indexing::{get_knn, KNNType, Indexer};
+use indexing::KNNType;
 use keygen::deserialize;
 use std::collections::HashMap;
+use std::thread;
 use std::{env, io};
 use types::{Data, DataType, VectorData};
 
@@ -76,9 +76,9 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         return;
     }
 
-    // TODO: This needs to be changed later
-    let mut database: Option<Database<KDTree>> = valid_database(&mut databases, input.trim());
-
+    
+    let mut database: Option<Database> = valid_database(&mut databases, input.trim());
+    
     if database.is_none() {
         let exit = change_path(&mut databases, input.trim());
         if exit {
@@ -89,7 +89,14 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         }
     }
 
+    let handle = thread::spawn(|| {
+        choose_indexer();
+    });
+
     let database = &mut database.unwrap();
+    
+    database.sync_with_indexer();
+
     loop {
         println!("{}", input.trim());
         println!("(1) Insert in Database");
@@ -125,11 +132,14 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
                 view_current_path(database);
             }
             "7" => {
+                handle.thread().unpark(); // Unpark the thread to allow it to exit
                 break;
             }
             _ => println!("Invalid choice"),
         }
     }
+
+    handle.join().expect("Failed to join thread");
 }
 
 fn add_databases(mut databases: &mut HashMap<String, String>) {
@@ -161,17 +171,19 @@ fn delete_databases(mut databases: &mut HashMap<String, String>) {
             return;
         }
 
-        // TODO: This needs to be changed later
-        let database = valid_database::<KDTree>(&mut databases, input.trim()).unwrap();
+        let database = valid_database(&mut databases, input.trim()).unwrap();
         delete_database(&database);
     } else {
         println!("Database does not exist");
     }
 }
 
-fn valid_database<T: Indexer>(databases: &mut HashMap<String, String>, input: &str) -> Option<Database<T>> {
+fn valid_database(
+    databases: &mut HashMap<String, String>,
+    input: &str,
+) -> Option<Database> {
     let file_path = databases.get(input).unwrap();
-    let mut database: Option<Database<T>> = None;
+    let mut database: Option<Database> = None;
     if check_path(&file_path) {
         println!("Path is valid, validating database...");
         if check_database(file_path) {
@@ -199,6 +211,43 @@ fn valid_database<T: Indexer>(databases: &mut HashMap<String, String>, input: &s
     }
 
     return database;
+}
+
+fn choose_indexer() {
+    loop {
+        println!("Please select an indexer");
+        println!("(1) KDTree");
+        println!("(2) BallTree");
+        println!("(3) Annoy");
+        println!("(4) HNSW");
+
+        let mut choice = String::new();
+        io::stdin()
+            .read_line(&mut choice)
+            .expect("Failed to read line");
+
+        match choice.trim() {
+            "1" => {
+                let mut kdtree = KDTree::new();
+                thread::spawn(move || {
+                    kdtree.db_thread();
+                });
+                println!("KDTree is running in the background");
+            }
+            "2" => {
+                println!("BallTree is not implemented yet.");
+            }
+            "3" => {
+                println!("Annoy is not implemented yet.");
+            }
+            "4" => {
+                println!("HNSW is not implemented yet.");
+            }
+            _ => {
+                println!("Invalid choice. Please select a valid option.");
+            }
+        }
+    }
 }
 
 fn change_path(databases: &mut HashMap<String, String>, input: &str) -> bool {
@@ -249,7 +298,7 @@ fn change_path(databases: &mut HashMap<String, String>, input: &str) -> bool {
     return br;
 }
 
-fn delete_database<T: Indexer> (database: &Database<T>) {
+fn delete_database(database: &Database) {
     println!("Deleting database...");
     match database.delete_database() {
         Ok(()) => println!("Database deleted successfully"),
@@ -257,7 +306,7 @@ fn delete_database<T: Indexer> (database: &Database<T>) {
     };
 }
 
-fn insert_in_database<T: Indexer> (database: &mut Database<T>) {
+fn insert_in_database(database: &mut Database) {
     let data: Data;
     match read_data() {
         Some(v) => {
@@ -276,7 +325,7 @@ fn insert_in_database<T: Indexer> (database: &mut Database<T>) {
     };
 }
 
-fn view_database<T: Indexer> (database: &Database<T>) {
+fn view_database(database: &Database) {
     let iter = database.db.iterator(IteratorMode::Start); //iterates from the start
     println!("Iterating over database...");
     for item in iter {
@@ -288,7 +337,7 @@ fn view_database<T: Indexer> (database: &Database<T>) {
     }
 }
 
-fn get_from_database<T: Indexer> (database: &Database<T>) {
+fn get_from_database(database: &Database) {
     println!("Enter key of data");
     let mut input = String::new();
     io::stdin()
@@ -313,7 +362,7 @@ fn get_from_database<T: Indexer> (database: &Database<T>) {
     }
 }
 
-fn delete_from_database<T: Indexer> (database: &mut Database<T>) {
+fn delete_from_database(database: &mut Database) {
     println!("(1) Delete by entering data");
     println!("(2) Delete by entering key");
 
@@ -336,8 +385,6 @@ fn delete_from_database<T: Indexer> (database: &mut Database<T>) {
                 Ok(v) => match v {
                     Some(_) => {
                         println!("Data deleted successfully");
-                        //change this function to delete from data
-                        // database.tree.delete_node(input.trim().to_string());
                     }
                     None => println!("Key not found"),
                 },
@@ -354,7 +401,6 @@ fn delete_from_database<T: Indexer> (database: &mut Database<T>) {
                 Ok(v) => match v {
                     Ok(Some(_)) => {
                         println!("Data deleted successfully");
-                        database.tree.delete_node(input.trim().to_string());
                     }
                     Ok(None) => println!("Key not found"),
                     Err(e) => println!("{}", e),
@@ -432,7 +478,7 @@ fn read_data() -> Option<Data> {
     };
 }
 
-fn find_knn<T: Indexer> (database: &mut Database<T>) {
+fn find_knn(database: &mut Database) {
     println!("Please Select input for KNN");
     println!("(1) Enter Data");
     println!("(2) Enter Key");
@@ -504,28 +550,28 @@ fn find_knn<T: Indexer> (database: &mut Database<T>) {
             .expect("Failed to read line");
         match choice.trim() {
             "1" => {
-                let result = get_knn(database, givenvec, kvalue, KNNType::Euclidean);
+                let result = database.get_knn(KNNType::Euclidean, kvalue, givenvec);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "2" => {
-                let result = get_knn(database, givenvec, kvalue, KNNType::Manhattan);
+                let result = database.get_knn(KNNType::Manhattan, kvalue, givenvec);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "3" => {
-                let result = get_knn(database, givenvec, kvalue, KNNType::Hamming);
+                let result = database.get_knn(KNNType::Hamming, kvalue, givenvec);
                 for r in &result {
                     println!("{}", r);
                 }
                 break;
             }
             "4" => {
-                let result = get_knn(database, givenvec, kvalue, KNNType::Cosine);
+                let result = database.get_knn(KNNType::Cosine, kvalue, givenvec);
                 for r in &result {
                     println!("{}", r);
                 }
@@ -538,6 +584,6 @@ fn find_knn<T: Indexer> (database: &mut Database<T>) {
     }
 }
 
-fn view_current_path<T: Indexer> (database: &Database<T>) {
+fn view_current_path(database: &Database) {
     println!("{}", database.get_current_path());
 }

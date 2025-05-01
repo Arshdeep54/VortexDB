@@ -1,11 +1,11 @@
+use crate::database::db_thread;
 use crate::database::keygen::*;
 use crate::database::types::Data;
+use crate::indexer::indexing::KNNType;
 use hex::{decode, FromHexError as hexerr};
 use rocksdb::backup::{BackupEngine, BackupEngineOptions, RestoreOptions};
 use rocksdb::{DBWithThreadMode, Error as err, IteratorMode, Options, SingleThreaded, DB};
 use sha2::{Digest, Sha256};
-use std::any::type_name;
-use crate::database::db_thread;
 
 pub struct Database {
     pub db: DBWithThreadMode<SingleThreaded>,
@@ -39,7 +39,7 @@ impl Database {
         let backup_engine = BackupEngine::open(&backup_engine_options, &backup_env).unwrap();
 
         //Open the database
-        let mut database = Database {
+        let database = Database {
             db: db,
             name: name.to_string(),
             backup_path: path.to_string(),
@@ -55,17 +55,11 @@ impl Database {
             let hex_strings: Vec<String> = key.iter().map(|b| format!("{:02x}", b)).collect();
             let result = hex_strings.join("");
             let vec = deserialize(&value);
-            match db_thread::add_node_pipe((result, vec.vector.vector), 0) {
-                Ok(_) => (),
-                Err(e) => return Err(e),
-            }
+            db_thread::add_node_pipe((result, vec.vector.vector), 0);
         }
 
         #[cfg(debug_assertions)]
-        match db_thread::print_tree_debug_pipe() {
-            Ok(_) => (),
-            Err(e) => return Err(e),
-        };
+        db_thread::print_tree_debug_pipe();
 
         return Ok(database);
     }
@@ -97,10 +91,7 @@ impl Database {
         let key_string = format!("{:x}", key);
         match self.db.put(&key, value.as_ref() as &[u8]) {
             Ok(_) => {
-                match db_thread::add_node_pipe((key_string.clone(), data.vector.vector), 0) {
-                    Ok(_) => (),
-                    Err(e) => return Err(e),
-                };
+                db_thread::add_node_pipe((key_string.clone(), data.vector.vector), 0);
                 return Ok(key_string);
             }
             Err(e) => {
@@ -130,10 +121,7 @@ impl Database {
 
         match self.db.get(&key) {
             Ok(Some(_)) => {
-                match db_thread::delete_node_pipe(key_string) {
-                    Ok(_) => (),
-                    Err(e) => return Err(e),
-                };
+                db_thread::delete_node_pipe(key_string);
                 match self.db.delete(key) {
                     Ok(_) => Ok(Some(())),
                     Err(e) => Err(e),
@@ -155,10 +143,7 @@ impl Database {
                 let key = bytes.into_boxed_slice();
                 match self.db.get(&key) {
                     Ok(Some(_)) => {
-                        match db_thread::delete_node_pipe(input.to_string()) {
-                            Ok(_) => (),
-                            Err(e) => return Err(e),
-                        };
+                        db_thread::delete_node_pipe(input.to_string());
                         match self.db.delete(key) {
                             Ok(_) => Ok(Ok(Some(()))),
                             Err(e) => Ok(Err(e)),
@@ -193,5 +178,44 @@ impl Database {
                 return Err(e);
             }
         }
+    }
+
+    pub fn get_knn(
+        &self,
+        k_type: KNNType,
+        k_value: usize,
+        givenvec: Vec<f32>,
+    ) -> Result<String, String> {
+        // Convert all this data to a string and call the pipe function
+        let mut vec = String::new();
+        for i in givenvec.iter() {
+            vec.push_str(&format!("{},", i));
+        }
+
+        vec.pop(); // Remove the last comma
+        let message = format!("{} {} {}", k_type as u8, k_value, vec);
+        match db_thread::get_knn_pipe(message) {
+            Ok(_) => {
+                return Ok(format!("Finding knn of {}", vec));
+            }
+            Err(e) => {
+                eprintln!("Failed to write to named pipe: {}", e);
+                return Err(format!("Failed to write to named pipe: {}", e));
+            }
+        }
+    }
+
+    pub fn sync_with_indexer(&self) {
+        // iterate through the database and send the data to the indexer
+        let iter = self.db.iterator(IteratorMode::Start); //iterates from the start
+        println!("Syncing database with indexer...");
+        for item in iter {
+            let (key, value) = item.unwrap();
+            let hex_strings: Vec<String> = key.iter().map(|b| format!("{:02x}", b)).collect();
+            let result = hex_strings.join("");
+            let vec = deserialize(&value);
+            db_thread::add_node_pipe((result, vec.vector.vector), 0);
+        }
+        println!("Syncing complete.");
     }
 }

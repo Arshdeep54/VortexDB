@@ -225,11 +225,27 @@ impl Indexer for KDTree {
         }
     }
 
-    // traversal
-    fn traversal(&self, k_value: usize) -> Vec<(String, Vec<f32>)> {
-        let mut result: Vec<(String, Vec<f32>)> = Vec::new();
-        inorder_traversal_helper(self._root.as_deref(), &mut result, k_value);
-        result
+    // TODO: send the vectors to the database, so that we can get the data from there
+    // get knn
+    fn get_knn(&self, knn_type: KNNType, k_value: usize, vector: Vec<f32>) {
+        let mut insert_heap: BinaryHeap<DataHeap> = BinaryHeap::new();
+        let k_nodes = self.traversal(k_value);
+        for node in &k_nodes {
+            insert_heap.push(DataHeap {
+                key: node.0.clone(),
+                distance: distance(vector.clone(), node.1.clone(), knn_type),
+            });
+        }
+        let root = self._root();
+        let binding = root.unwrap();
+        let (heap, n_visited) = binding.find_nearest_neighbors(vector, knn_type, &mut insert_heap);
+
+        // Printt the k - nearest neighbors
+        println!("Visited {} nodes", n_visited);
+        for point in heap.iter() {
+            println!("{}", point.key);
+        }
+        
     }
 
     fn _root(&self) -> Option<&dyn Node> {
@@ -238,6 +254,14 @@ impl Indexer for KDTree {
 }
 
 impl KDTree {
+
+    // traversal
+    fn traversal(&self, k_value: usize) -> Vec<(String, Vec<f32>)> {
+        let mut result: Vec<(String, Vec<f32>)> = Vec::new();
+        inorder_traversal_helper(self._root.as_deref(), &mut result, k_value);
+        result
+    }
+
     // rebuild tree
     fn rebuild(&mut self) {
         self._internals.kd_tree_allow_update = false;

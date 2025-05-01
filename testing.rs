@@ -63,10 +63,10 @@ mod tests {
     }
 
     fn random_data(dim: usize) -> Data {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut randoms: Vec<f32> = Vec::new();
         for _ in 0..dim {
-            randoms.push(rng.gen());
+            randoms.push(rng.random());
         }
         let vector = VectorData {
             vector: randoms,
