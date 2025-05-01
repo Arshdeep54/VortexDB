@@ -2,7 +2,10 @@
 use core::f32;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use crate::database::db::Database;
+use std::fs::OpenOptions;
+use std::io::{BufRead, BufReader};
+
+const PIPE_PATH: &str = "tmp/db_pipe";
 
 #[derive(Clone, Copy)]
 pub enum KNNType {
@@ -80,41 +83,79 @@ pub fn distance(a: Vec<f32>, b: Vec<f32>, dist_type: KNNType) -> f32 {
     };
 }
 
-pub fn get_knn<T: Indexer>(
-    database: &mut Database<T>,
-    input: Vec<f32>,
-    kvalue: usize,
-    knn_type: KNNType,
-) -> Vec<String> {
-    //Finding the first k elements to insert into the BinaryHeap
-    let k_nodes = database.tree.traversal(kvalue);
-    let mut insert_heap: BinaryHeap<DataHeap> = BinaryHeap::new();
-    for node in &k_nodes {
-        insert_heap.push(DataHeap {
-            key: node.0.clone(),
-            distance: distance(input.clone(), node.1.clone(), knn_type),
-        });
-    }
-    let root = database.tree._root();
-    let binding = root.as_ref().unwrap();
-    let (heap, n_visited) = binding.find_nearest_neighbors(input, knn_type, &mut insert_heap);
-    let mut ret_vec: Vec<String> = Vec::new();
-    ret_vec.push(format!("Visited {} nodes", n_visited));
-    for point in heap.iter() {
-        ret_vec.push(point.key.clone());
-    }
-    return ret_vec;
-}
-
 pub trait Indexer {
-    fn new() -> Self where Self: Sized;
+    fn new() -> Self
+    where
+        Self: Sized;
     fn add_node(&mut self, data: (String, Vec<f32>), depth: usize);
     fn delete_node(&mut self, data: String);
     fn print_tree_for_debug(&self);
-    fn traversal(&self, k_value: usize) -> Vec<(String, Vec<f32>)>;
+    fn get_knn(&self, knn_type: KNNType, k_value: usize, vector: Vec<f32>);
     fn _root(&self) -> Option<&dyn Node>;
 
     // Functions for communicating with vectoriser and database
+    fn db_thread(&mut self) {
+        let pipe = match OpenOptions::new().read(true).open(PIPE_PATH) {
+            Ok(pipe) => pipe,
+            Err(e) => {
+                eprintln!("Failed to open pipe: {}", e);
+                return;
+            }
+        };
+
+        let reader = BufReader::new(pipe);
+        for line in reader.lines() {
+            match line {
+                Ok(command) => {
+                    // Process the command here
+                    println!("Received command: {}", command);
+
+                    match command.split_whitespace().collect::<Vec<&str>>().as_slice() {
+                        ["add_node", key, depth, ..] => {
+                            let depth: usize = depth.parse().unwrap_or(0);
+                            let vector: Vec<f32> = command
+                                .split_whitespace()
+                                .skip(3)
+                                .map(|x| x.parse().unwrap_or(0.0))
+                                .collect();
+                            self.add_node((key.to_string(), vector), depth);
+                        }
+                        ["delete_node", key] => {
+                            self.delete_node(key.to_string());
+                        }
+                        ["print_tree"] => {
+                            self.print_tree_for_debug();
+                        }
+                        ["get_knn", knn_type, k_value, ..] => {
+                            let knn_type = match *knn_type {
+                                "euclidean" => KNNType::Euclidean,
+                                "manhattan" => KNNType::Manhattan,
+                                "hamming" => KNNType::Hamming,
+                                "cosine" => KNNType::Cosine,
+                                _ => {
+                                    eprintln!("Unknown KNN type: {}", knn_type);
+                                    continue;
+                                }
+                            };
+                            let k_value: usize = k_value.parse().unwrap_or(0);
+                            let vector: Vec<f32> = command
+                                .split_whitespace()
+                                .skip(3)
+                                .map(|x| x.parse().unwrap_or(0.0))
+                                .collect();
+                            self.get_knn(knn_type, k_value, vector);
+                        }
+                        _ => {
+                            eprintln!("Unknown command: {}", command);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to read line from pipe: {}", e);
+                }
+            }
+        }
+    }
 }
 
 pub trait Node {

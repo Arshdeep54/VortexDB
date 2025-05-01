@@ -6,6 +6,7 @@ pub fn serialize(vector: Data) -> Vec<u8> {
 }
 
 pub fn deserialize(bytes: &[u8]) -> Data {
-    let vec = bincode::deserialize(&bytes).unwrap();
+    let vec = bincode::deserialize(bytes).unwrap();
     return vec;
 }
+

@@ -1,7 +1,7 @@
 use std::fs::OpenOptions;
-use std::os::unix::net::UnixStream;
 use std::io::prelude::*;
 
+// This module handles the named pipe communication between database and indexer.
 const PIPE_PATH : &str = "tmp/db_pipe";
 
 fn write_to_named_pipe(pipe_path: &str, message: &str) -> std::io::Result<()> {
@@ -25,6 +25,15 @@ pub fn add_node_pipe(data: (String, Vec<f32>), depth: usize) -> std::io::Result<
 
 pub fn delete_node_pipe(data: String) -> std::io::Result<()> {
     let message = format!("delete_node {}", data);
+    if let Err(e) = write_to_named_pipe(PIPE_PATH, &message) {
+        eprintln!("Failed to write to named pipe: {}", e);
+        return Err(e);
+    }
+    Ok(())
+}
+
+pub fn get_knn_pipe(data: String) -> std::io::Result<()> {
+    let message = format!("get_knn {}", data);
     if let Err(e) = write_to_named_pipe(PIPE_PATH, &message) {
         eprintln!("Failed to write to named pipe: {}", e);
         return Err(e);
