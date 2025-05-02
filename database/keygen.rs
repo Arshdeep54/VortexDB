@@ -1,14 +1,10 @@
 use crate::database::types::Data;
+use serde_json;
 
-pub fn serialize(vector: Data) -> Vec<u8> {
-    // TODO: Implement proper serialization
-    // Returns empty bytes for now
-    Vec::new()
+pub fn serialize(data: Data) -> Vec<u8> {
+    serde_json::to_vec(&data).expect("Failed to serialize data")
 }
 
 pub fn deserialize(bytes: &[u8]) -> Data {
-    // TODO: Implement proper deserialization
-    // Returns default/empty data for now
-    Data::default()
+    serde_json::from_slice(bytes).expect("Failed to deserialize data")
 }
-

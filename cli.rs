@@ -13,8 +13,27 @@ use types::{Data, DataType, VectorData};
 
 use rocksdb::IteratorMode;
 
+fn clear_screen() {
+    // Add a small delay for better user experience
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/c", "cls"])
+            .status();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = std::process::Command::new("clear")
+            .status();
+    }
+}
+
 pub fn run_cli() {
+    clear_screen();
     println!("Welcome to Vector DB");
+    clear_screen();
     main_menu();
 }
 
@@ -35,15 +54,19 @@ fn main_menu() {
 
         match choice.trim() {
             "1" => {
+                clear_screen();
                 show_databases(&mut databases);
             }
             "2" => {
+                clear_screen();
                 use_databases(&mut databases);
             }
             "3" => {
+                clear_screen();
                 add_databases(&mut databases);
             }
             "4" => {
+                clear_screen();
                 delete_databases(&mut databases);
             }
             "0" => {
@@ -51,6 +74,7 @@ fn main_menu() {
             }
             _ => {
                 println!("Invalid choice");
+                clear_screen();
             }
         };
     }
@@ -89,9 +113,41 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         }
     }
 
-    let handle = thread::spawn(|| {
-        choose_indexer();
-    });
+    loop {
+        println!("Please select an indexer");
+        println!("(1) KDTree");
+        println!("(2) BallTree");
+        println!("(3) Annoy");
+        println!("(4) HNSW");
+
+        let mut choice = String::new();
+        io::stdin()
+            .read_line(&mut choice)
+            .expect("Failed to read line");
+
+        match choice.trim() {
+            "1" => {
+                let mut kdtree = KDTree::new();
+                thread::spawn(move || {
+                    kdtree.db_thread();
+                });
+                println!("KDTree is running in the background");
+                break;
+            }
+            "2" => {
+                println!("BallTree is not implemented yet.");
+            }
+            "3" => {
+                println!("Annoy is not implemented yet.");
+            }
+            "4" => {
+                println!("HNSW is not implemented yet.");
+            }
+            _ => {
+                println!("Invalid choice. Please select a valid option.");
+            }
+        }
+    }
 
     let database = &mut database.unwrap();
     
@@ -132,14 +188,12 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
                 view_current_path(database);
             }
             "7" => {
-                handle.thread().unpark(); // Unpark the thread to allow it to exit
+                // TODO: Close the thread opened by indexer
                 break;
             }
             _ => println!("Invalid choice"),
         }
     }
-
-    handle.join().expect("Failed to join thread");
 }
 
 fn add_databases(mut databases: &mut HashMap<String, String>) {
@@ -211,43 +265,6 @@ fn valid_database(
     }
 
     return database;
-}
-
-fn choose_indexer() {
-    loop {
-        println!("Please select an indexer");
-        println!("(1) KDTree");
-        println!("(2) BallTree");
-        println!("(3) Annoy");
-        println!("(4) HNSW");
-
-        let mut choice = String::new();
-        io::stdin()
-            .read_line(&mut choice)
-            .expect("Failed to read line");
-
-        match choice.trim() {
-            "1" => {
-                let mut kdtree = KDTree::new();
-                thread::spawn(move || {
-                    kdtree.db_thread();
-                });
-                println!("KDTree is running in the background");
-            }
-            "2" => {
-                println!("BallTree is not implemented yet.");
-            }
-            "3" => {
-                println!("Annoy is not implemented yet.");
-            }
-            "4" => {
-                println!("HNSW is not implemented yet.");
-            }
-            _ => {
-                println!("Invalid choice. Please select a valid option.");
-            }
-        }
-    }
 }
 
 fn change_path(databases: &mut HashMap<String, String>, input: &str) -> bool {

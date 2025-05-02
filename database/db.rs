@@ -46,24 +46,6 @@ impl Database {
             wal_ttl: WAL_TTL,
         };
 
-        // Build the KD-Tree
-        let iter = database.db.iterator(IteratorMode::Start); //iterates from the start
-        println!("Iterating over database...");
-        for item in iter {
-            let (key, value) = item.unwrap();
-            let hex_strings: Vec<String> = key.iter().map(|b| format!("{:02x}", b)).collect();
-            let result = hex_strings.join("");
-            let vec = deserialize(&value);
-            if let Err(e) = db_thread::add_node_pipe((result, vec.vector.vector), 0) {
-                eprintln!("Failed to add node to pipe: {}", e);
-            }
-        }
-
-        #[cfg(debug_assertions)]
-        if let Err(e) = db_thread::print_tree_debug_pipe() {
-            eprintln!("Failed to print debug tree: {}", e);
-        }
-
         return Ok(database);
     }
 

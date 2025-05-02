@@ -6,8 +6,21 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fs::OpenOptions;
 use std::io::{BufReader, Read};
+use std::os::unix::fs::FileTypeExt;
 
 const PIPE_PATH: &str = "tmp/db_pipe";
+
+// Ensure the pipe directory exists
+fn ensure_pipe_exists() -> std::io::Result<()> {
+    if let Some(parent) = std::path::Path::new(PIPE_PATH).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    if !std::path::Path::new(PIPE_PATH).exists() {
+        use std::process::Command;
+        Command::new("mkfifo").arg(PIPE_PATH).status()?;
+    }
+    Ok(())
+}
 
 #[derive(Clone, Copy)]
 pub enum KNNType {
@@ -82,7 +95,7 @@ pub fn distance(a: Vec<f32>, b: Vec<f32>, dist_type: KNNType) -> f32 {
             let r = r_score.iter().sum::<f32>().sqrt();
             return p / (q * r);
         }
-    };
+    }
 }
 
 pub trait Indexer {
@@ -97,8 +110,23 @@ pub trait Indexer {
 
     // Function for communicating with vectoriser and database using protobufs
     fn db_thread(&mut self) {
+        // Ensure the pipe exists before opening it
+        if let Err(e) = ensure_pipe_exists() {
+            eprintln!("Failed to create pipe: {}", e);
+            return;
+        }
+        
         let pipe = match OpenOptions::new().read(true).open(PIPE_PATH) {
-            Ok(pipe) => pipe,
+            Ok(pipe) => {
+                // Check if the file is a named pipe
+                let metadata = std::fs::metadata(PIPE_PATH)
+                    .expect("Unable to fetch metadata for the named pipe");
+                if !metadata.file_type().is_fifo() {
+                    eprintln!("The path is not a named pipe");
+                    return;
+                }
+                pipe
+            }
             Err(e) => {
                 eprintln!("Failed to open pipe: {}", e);
                 return;
