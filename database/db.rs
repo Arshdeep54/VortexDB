@@ -1,7 +1,6 @@
 use crate::database::db_thread;
 use crate::database::keygen::*;
 use crate::database::types::Data;
-use crate::indexer::indexing::KNNType;
 use hex::{decode, FromHexError as hexerr};
 use rocksdb::backup::{BackupEngine, BackupEngineOptions, RestoreOptions};
 use rocksdb::{DBWithThreadMode, Error as err, IteratorMode, Options, SingleThreaded, DB};
@@ -55,11 +54,15 @@ impl Database {
             let hex_strings: Vec<String> = key.iter().map(|b| format!("{:02x}", b)).collect();
             let result = hex_strings.join("");
             let vec = deserialize(&value);
-            db_thread::add_node_pipe((result, vec.vector.vector), 0);
+            if let Err(e) = db_thread::add_node_pipe((result, vec.vector.vector), 0) {
+                eprintln!("Failed to add node to pipe: {}", e);
+            }
         }
 
         #[cfg(debug_assertions)]
-        db_thread::print_tree_debug_pipe();
+        if let Err(e) = db_thread::print_tree_debug_pipe() {
+            eprintln!("Failed to print debug tree: {}", e);
+        }
 
         return Ok(database);
     }
@@ -91,7 +94,10 @@ impl Database {
         let key_string = format!("{:x}", key);
         match self.db.put(&key, value.as_ref() as &[u8]) {
             Ok(_) => {
-                db_thread::add_node_pipe((key_string.clone(), data.vector.vector), 0);
+                if let Err(e) = db_thread::add_node_pipe((key_string.clone(), data.vector.vector), 0) {
+                    eprintln!("Failed to add node to pipe: {}", e);
+                    // Optionally, you could return an error here instead of just logging it
+                }
                 return Ok(key_string);
             }
             Err(e) => {
@@ -121,7 +127,9 @@ impl Database {
 
         match self.db.get(&key) {
             Ok(Some(_)) => {
-                db_thread::delete_node_pipe(key_string);
+                if let Err(e) = db_thread::delete_node_pipe(key_string) {
+                    eprintln!("Failed to delete node from pipe: {}", e);
+                }
                 match self.db.delete(key) {
                     Ok(_) => Ok(Some(())),
                     Err(e) => Err(e),
@@ -143,7 +151,9 @@ impl Database {
                 let key = bytes.into_boxed_slice();
                 match self.db.get(&key) {
                     Ok(Some(_)) => {
-                        db_thread::delete_node_pipe(input.to_string());
+                        if let Err(e) = db_thread::delete_node_pipe(input.to_string()) {
+                            eprintln!("Failed to delete node from pipe: {}", e);
+                        }
                         match self.db.delete(key) {
                             Ok(_) => Ok(Ok(Some(()))),
                             Err(e) => Ok(Err(e)),
@@ -182,21 +192,14 @@ impl Database {
 
     pub fn get_knn(
         &self,
-        k_type: KNNType,
+        k_type: u8,
         k_value: usize,
         givenvec: Vec<f32>,
     ) -> Result<String, String> {
         // Convert all this data to a string and call the pipe function
-        let mut vec = String::new();
-        for i in givenvec.iter() {
-            vec.push_str(&format!("{},", i));
-        }
-
-        vec.pop(); // Remove the last comma
-        let message = format!("{} {} {}", k_type as u8, k_value, vec);
-        match db_thread::get_knn_pipe(message) {
+        match db_thread::get_knn_pipe(k_type, k_value, givenvec) {
             Ok(_) => {
-                return Ok(format!("Finding knn of {}", vec));
+                return Ok(format!("Finding knn...",));
             }
             Err(e) => {
                 eprintln!("Failed to write to named pipe: {}", e);
@@ -214,7 +217,9 @@ impl Database {
             let hex_strings: Vec<String> = key.iter().map(|b| format!("{:02x}", b)).collect();
             let result = hex_strings.join("");
             let vec = deserialize(&value);
-            db_thread::add_node_pipe((result, vec.vector.vector), 0);
+            if let Err(e) = db_thread::add_node_pipe((result, vec.vector.vector), 0) {
+                eprintln!("Failed to add node to pipe during sync: {}", e);
+            }
         }
         println!("Syncing complete.");
     }

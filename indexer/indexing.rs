@@ -1,9 +1,11 @@
 // use crate::database::db::Database;
+use crate::indexer::proto::indexer_thread::{Command, KnnType as ProtoKnnType};
 use core::f32;
+use prost::Message;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fs::OpenOptions;
-use std::io::{BufRead, BufReader};
+use std::io::{BufReader, Read};
 
 const PIPE_PATH: &str = "tmp/db_pipe";
 
@@ -93,7 +95,7 @@ pub trait Indexer {
     fn get_knn(&self, knn_type: KNNType, k_value: usize, vector: Vec<f32>);
     fn _root(&self) -> Option<&dyn Node>;
 
-    // Functions for communicating with vectoriser and database
+    // Function for communicating with vectoriser and database using protobufs
     fn db_thread(&mut self) {
         let pipe = match OpenOptions::new().read(true).open(PIPE_PATH) {
             Ok(pipe) => pipe,
@@ -103,55 +105,93 @@ pub trait Indexer {
             }
         };
 
-        let reader = BufReader::new(pipe);
-        for line in reader.lines() {
-            match line {
-                Ok(command) => {
-                    // Process the command here
-                    println!("Received command: {}", command);
+        let mut reader = BufReader::new(pipe);
+        let mut buffer = Vec::new();
+        let mut size_buf = [0u8; 4]; // For reading message size (uint32)
 
-                    match command.split_whitespace().collect::<Vec<&str>>().as_slice() {
-                        ["add_node", key, depth, ..] => {
-                            let depth: usize = depth.parse().unwrap_or(0);
-                            let vector: Vec<f32> = command
-                                .split_whitespace()
-                                .skip(3)
-                                .map(|x| x.parse().unwrap_or(0.0))
-                                .collect();
-                            self.add_node((key.to_string(), vector), depth);
+        loop {
+            // Read message size (4 bytes for uint32)
+            match reader.read_exact(&mut size_buf) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("Failed to read message size: {}", e);
+                    break;
+                }
+            }
+
+            // Convert bytes to u32 (size of the message)
+            let msg_size = u32::from_le_bytes(size_buf) as usize;
+
+            // Prepare buffer
+            buffer.clear();
+            buffer.resize(msg_size, 0);
+
+            // Read the actual message
+            match reader.read_exact(&mut buffer) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("Failed to read message: {}", e);
+                    break;
+                }
+            }
+
+            // Deserialize the protobuf message
+            match Command::decode(&buffer[..]) {
+                Ok(command) => {
+                    match command.command {
+                        Some(crate::indexer::proto::indexer_thread::command::Command::AddNode(
+                            add_node,
+                        )) => {
+                            if let Some(vector) = add_node.vector {
+                                let depth = add_node.depth as usize;
+                                let key = add_node.key;
+                                let values = vector.values;
+                                self.add_node((key, values), depth);
+                            }
                         }
-                        ["delete_node", key] => {
-                            self.delete_node(key.to_string());
+                        Some(
+                            crate::indexer::proto::indexer_thread::command::Command::DeleteNode(
+                                delete_node,
+                            ),
+                        ) => {
+                            let key = delete_node.key;
+                            self.delete_node(key);
                         }
-                        ["print_tree"] => {
+                        Some(crate::indexer::proto::indexer_thread::command::Command::GetKnn(
+                            get_knn,
+                        )) => {
+                            if let Some(vector) = get_knn.vector {
+                                let k_value = get_knn.k_value as usize;
+                                let values = vector.values;
+
+                                // Convert protobuf enum to our enum
+                                let knn_type = match ProtoKnnType::try_from(get_knn.knn_type as i32)
+                                {
+                                    Ok(ProtoKnnType::Euclidean) => KNNType::Euclidean,
+                                    Ok(ProtoKnnType::Manhattan) => KNNType::Manhattan,
+                                    Ok(ProtoKnnType::Hamming) => KNNType::Hamming,
+                                    Ok(ProtoKnnType::Cosine) => KNNType::Cosine,
+                                    _ => {
+                                        eprintln!("Unknown KNN type from protobuf");
+                                        continue;
+                                    }
+                                };
+
+                                self.get_knn(knn_type, k_value, values);
+                            }
+                        }
+                        Some(
+                            crate::indexer::proto::indexer_thread::command::Command::PrintTree(_),
+                        ) => {
                             self.print_tree_for_debug();
                         }
-                        ["get_knn", knn_type, k_value, ..] => {
-                            let knn_type = match *knn_type {
-                                "euclidean" => KNNType::Euclidean,
-                                "manhattan" => KNNType::Manhattan,
-                                "hamming" => KNNType::Hamming,
-                                "cosine" => KNNType::Cosine,
-                                _ => {
-                                    eprintln!("Unknown KNN type: {}", knn_type);
-                                    continue;
-                                }
-                            };
-                            let k_value: usize = k_value.parse().unwrap_or(0);
-                            let vector: Vec<f32> = command
-                                .split_whitespace()
-                                .skip(3)
-                                .map(|x| x.parse().unwrap_or(0.0))
-                                .collect();
-                            self.get_knn(knn_type, k_value, vector);
-                        }
-                        _ => {
-                            eprintln!("Unknown command: {}", command);
+                        None => {
+                            eprintln!("Received empty command");
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to read line from pipe: {}", e);
+                    eprintln!("Failed to decode protobuf message: {}", e);
                 }
             }
         }

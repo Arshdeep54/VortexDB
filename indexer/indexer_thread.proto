@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package indexer_thread;
+
+enum KNNType {
+    EUCLIDEAN = 0;
+    MANHATTAN = 1;
+    HAMMING = 2;
+    COSINE = 3;
+}
+
+message Vector {
+    repeated float values = 1;
+}
+
+message AddNode {
+    string key = 1;
+    uint32 depth = 2;
+    Vector vector = 3;
+}
+
+message DeleteNode {
+    string key = 1;
+}
+
+message GetKNN {
+    KNNType knn_type = 1;
+    uint32 k_value = 2;
+    Vector vector = 3;
+}
+
+message PrintTree {}
+
+message Command {
+    oneof command {
+        AddNode add_node = 1;
+        DeleteNode delete_node = 2;
+        GetKNN get_knn = 3;
+        PrintTree print_tree = 4;
+    }
+}

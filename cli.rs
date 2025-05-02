@@ -550,30 +550,38 @@ fn find_knn(database: &mut Database) {
             .expect("Failed to read line");
         match choice.trim() {
             "1" => {
-                let result = database.get_knn(KNNType::Euclidean, kvalue, givenvec);
-                for r in &result {
-                    println!("{}", r);
+                let result = database.get_knn(KNNType::Euclidean as u8, kvalue, givenvec);
+                if let Ok(v) = result {
+                    println!("Result: {:?}", v);
+                } else {
+                    println!("Error: {:?}", result);
                 }
                 break;
             }
             "2" => {
-                let result = database.get_knn(KNNType::Manhattan, kvalue, givenvec);
-                for r in &result {
-                    println!("{}", r);
+                let result = database.get_knn(KNNType::Manhattan as u8, kvalue, givenvec);
+                if let Ok(v) = result {
+                    println!("Result: {:?}", v);
+                } else {
+                    println!("Error: {:?}", result);
                 }
                 break;
             }
             "3" => {
-                let result = database.get_knn(KNNType::Hamming, kvalue, givenvec);
-                for r in &result {
-                    println!("{}", r);
+                let result = database.get_knn(KNNType::Hamming as u8, kvalue, givenvec);
+                if let Ok(v) = result {
+                    println!("Result: {:?}", v);
+                } else {
+                    println!("Error: {:?}", result);
                 }
                 break;
             }
             "4" => {
-                let result = database.get_knn(KNNType::Cosine, kvalue, givenvec);
-                for r in &result {
-                    println!("{}", r);
+                let result = database.get_knn(KNNType::Cosine as u8, kvalue, givenvec);
+                if let Ok(v) = result {
+                    println!("Result: {:?}", v);
+                } else {
+                    println!("Error: {:?}", result);
                 }
                 break;
             }
