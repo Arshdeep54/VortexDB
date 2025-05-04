@@ -154,6 +154,9 @@ impl Indexer for KDTree {
     // Add a node
     // If the dimension of the tree is zero, then it becomes equal to the input data
     fn add_node(&mut self, data: (String, Vec<f32>), depth: usize) {
+
+        println!("Adding node: {:?}", data);
+
         if self._root.is_none() {
             self.dim = data.1.len();
             self._root = Some(Box::new(KDTreeNode::new(data, 0)));

@@ -21,11 +21,20 @@ pub struct VectorResponse {
 
 #[cfg(feature = "test_vectors")]
 pub fn vectorise(input: &str, _pooling_strategy: &str) -> VectorResponse {
-    println!("Using test vectoriser with mock vectors");
-    // Simple test version that converts input to bytes and then back to f32 values
-    let bytes = input.as_bytes();
-    let vector: Vec<f32> = bytes.iter()
-        .map(|b| *b as f32)
+    println!("Using test vectoriser with fixed size vectors");
+    // Generate a deterministic vector of size 10 based on the input
+    let mut hash: u64 = 0;
+    for byte in input.bytes() {
+        hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
+    }
+    
+    // Create a fixed-size vector of 10 elements
+    let vector: Vec<f32> = (0..10)
+        .map(|i| {
+            // Use the hash and position to generate a deterministic value
+            let value = ((hash + i as u64) % 100) as f32 / 100.0;
+            value
+        })
         .collect();
 
     VectorResponse {

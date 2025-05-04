@@ -8,10 +8,10 @@ use std::fs::OpenOptions;
 use std::io::{BufReader, Read};
 use std::os::unix::fs::FileTypeExt;
 
-const PIPE_PATH: &str = "tmp/db_pipe";
+const PIPE_PATH: &str = "/tmp/db_pipe";
 
 // Ensure the pipe directory exists
-fn ensure_pipe_exists() -> std::io::Result<()> {
+pub fn ensure_pipe_exists() -> std::io::Result<()> {
     if let Some(parent) = std::path::Path::new(PIPE_PATH).parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -108,7 +108,6 @@ pub trait Indexer {
     fn get_knn(&self, knn_type: KNNType, k_value: usize, vector: Vec<f32>);
     fn _root(&self) -> Option<&dyn Node>;
 
-    // Function for communicating with vectoriser and database using protobufs
     fn db_thread(&mut self) {
         // Ensure the pipe exists before opening it
         if let Err(e) = ensure_pipe_exists() {

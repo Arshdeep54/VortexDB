@@ -1,5 +1,5 @@
-use crate::database::{db, dbpath, keygen, types};
-use crate::indexer::indexing::{self, Indexer};
+use crate::database::{db, db_thread, dbpath, keygen, types};
+use crate::indexer::indexing::{self, Indexer, ensure_pipe_exists};
 use crate::indexer::indexing_models::kd_tree::KDTree;
 use crate::vectorisers::vectoriser;
 use db::Database;
@@ -125,6 +125,11 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
             .read_line(&mut choice)
             .expect("Failed to read line");
 
+        if let Err(err) = ensure_pipe_exists() {
+            println!("Pipe does not exist: {:?}", err);
+            return;
+        }
+        
         match choice.trim() {
             "1" => {
                 let mut kdtree = KDTree::new();
@@ -161,7 +166,8 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         println!("(4) Delete from Database");
         println!("(5) Find K Nearest Neighbours");
         println!("(6) View current path");
-        println!("(7) Switch database");
+        println!("(7) Print indexer tree");
+        println!("(8) Switch database");
 
         let mut choice = String::new();
         io::stdin()
@@ -188,6 +194,11 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
                 view_current_path(database);
             }
             "7" => {
+                if let Err(e) = db_thread::print_tree_debug_pipe() {
+                    println!("Failed to print tree: {}", e);
+                }
+            }
+            "8" => {
                 // TODO: Close the thread opened by indexer
                 break;
             }

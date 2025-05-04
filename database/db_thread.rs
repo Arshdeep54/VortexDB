@@ -1,32 +1,55 @@
 use crate::indexer::proto::indexer_thread::{
     AddNode, Command, DeleteNode, GetKnn, PrintTree, Vector,
 };
-
 use prost::Message;
-use std::fs::OpenOptions; 
+use std::cell::RefCell;
+use std::fs::OpenOptions;
 use std::io::prelude::*;
+use std::sync::Once;
+
+static INIT_PIPE: Once = Once::new();
+thread_local! {
+    static PIPE_WRITER: RefCell<Option<std::fs::File>> = RefCell::new(None);
+}
+
+fn get_pipe_writer() -> std::io::Result<std::fs::File> {
+    INIT_PIPE.call_once(|| {
+        // Make sure pipe exists
+        let _ = crate::indexer::indexing::ensure_pipe_exists();
+    });
+
+    let mut result = None;
+    PIPE_WRITER.with(|pipe| {
+        if pipe.borrow().is_none() {
+            *pipe.borrow_mut() = Some(
+                OpenOptions::new()
+                    .write(true)
+                    .open(PIPE_PATH)
+                    .expect("Failed to open named pipe for writing:"),
+            );
+        }
+        result = Some(pipe.borrow().as_ref().unwrap().try_clone());
+    });
+
+    Ok(result.unwrap().expect("Failed to clone pipe writer"))
+}
 
 // This module handles the named pipe communication between database and indexer.
-const PIPE_PATH: &str = "tmp/db_pipe";
+const PIPE_PATH: &str = "/tmp/db_pipe";
 
-fn write_protobuf_to_pipe<T: Message>(pipe_path: &str, message: &T) -> std::io::Result<()> {
+fn write_protobuf_to_pipe<T: Message>(message: &T) -> std::io::Result<()> {
+    let mut pipe = get_pipe_writer().expect("Failed to get pipe writer");
+
     // Serialize the protobuf message
     let mut buf = Vec::new();
     message
         .encode(&mut buf)
         .expect("Failed to encode protobuf message");
 
-    // Get the size of the serialized message
     let msg_size = buf.len() as u32;
     let size_bytes = msg_size.to_le_bytes();
 
-    // Open the pipe for writing
-    let mut pipe = OpenOptions::new().write(true).open(pipe_path)?;
-
-    // Write the message size as a 4-byte prefix
     pipe.write_all(&size_bytes)?;
-
-    // Write the actual message
     pipe.write_all(&buf)?;
     pipe.flush()?;
 
@@ -50,7 +73,7 @@ pub fn add_node_pipe(data: (String, Vec<f32>), depth: usize) -> std::io::Result<
     };
 
     // Write the command to the pipe
-    if let Err(e) = write_protobuf_to_pipe(PIPE_PATH, &command) {
+    if let Err(e) = write_protobuf_to_pipe(&command) {
         eprintln!("Failed to write to named pipe: {}", e);
         return Err(e);
     }
@@ -70,7 +93,7 @@ pub fn delete_node_pipe(data: String) -> std::io::Result<()> {
     };
 
     // Write the command to the pipe
-    if let Err(e) = write_protobuf_to_pipe(PIPE_PATH, &command) {
+    if let Err(e) = write_protobuf_to_pipe(&command) {
         eprintln!("Failed to write to named pipe: {}", e);
         return Err(e);
     }
@@ -78,11 +101,7 @@ pub fn delete_node_pipe(data: String) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn get_knn_pipe(
-    knn_type: u8,
-    k_value: usize,
-    vector_data: Vec<f32>,
-) -> std::io::Result<()> {
+pub fn get_knn_pipe(knn_type: u8, k_value: usize, vector_data: Vec<f32>) -> std::io::Result<()> {
     // Create the Vector protobuf message
     let vector = Vector {
         values: vector_data,
@@ -101,7 +120,7 @@ pub fn get_knn_pipe(
     };
 
     // Write the command to the pipe
-    if let Err(e) = write_protobuf_to_pipe(PIPE_PATH, &command) {
+    if let Err(e) = write_protobuf_to_pipe(&command) {
         eprintln!("Failed to write to named pipe: {}", e);
         return Err(e);
     }
@@ -121,7 +140,7 @@ pub fn print_tree_debug_pipe() -> std::io::Result<()> {
     };
 
     // Write the command to the pipe
-    if let Err(e) = write_protobuf_to_pipe(PIPE_PATH, &command) {
+    if let Err(e) = write_protobuf_to_pipe(&command) {
         eprintln!("Failed to write to named pipe: {}", e);
         return Err(e);
     }
