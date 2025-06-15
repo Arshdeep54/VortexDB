@@ -3,16 +3,17 @@ use crate::indexer::proto::indexer_thread::{
 };
 use prost::Message;
 use std::cell::RefCell;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
+use std::io::Result;
 use std::sync::Once;
 
 static INIT_PIPE: Once = Once::new();
 thread_local! {
-    static PIPE_WRITER: RefCell<Option<std::fs::File>> = RefCell::new(None);
+    static PIPE_WRITER: RefCell<Option<File>> = const { RefCell::new(None) };
 }
 
-fn get_pipe_writer() -> std::io::Result<std::fs::File> {
+fn get_pipe_writer() -> Result<File> {
     INIT_PIPE.call_once(|| {
         // Make sure pipe exists
         let _ = crate::indexer::indexing::ensure_pipe_exists();
@@ -37,7 +38,7 @@ fn get_pipe_writer() -> std::io::Result<std::fs::File> {
 // This module handles the named pipe communication between database and indexer.
 const PIPE_PATH: &str = "/tmp/db_pipe";
 
-fn write_protobuf_to_pipe<T: Message>(message: &T) -> std::io::Result<()> {
+fn write_protobuf_to_pipe<T: Message>(message: &T) -> Result<()> {
     let mut pipe = get_pipe_writer().expect("Failed to get pipe writer");
 
     // Serialize the protobuf message
@@ -56,7 +57,7 @@ fn write_protobuf_to_pipe<T: Message>(message: &T) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn add_node_pipe(data: (String, Vec<f32>), depth: usize) -> std::io::Result<()> {
+pub fn add_node_pipe(data: (String, Vec<f32>), depth: usize) -> Result<()> {
     // Create the Vector protobuf message
     let vector = Vector { values: data.1 };
 
@@ -81,7 +82,7 @@ pub fn add_node_pipe(data: (String, Vec<f32>), depth: usize) -> std::io::Result<
     Ok(())
 }
 
-pub fn delete_node_pipe(data: String) -> std::io::Result<()> {
+pub fn delete_node_pipe(data: String) -> Result<()> {
     // Create the DeleteNode protobuf message
     let delete_node = DeleteNode { key: data };
 
@@ -101,7 +102,7 @@ pub fn delete_node_pipe(data: String) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn get_knn_pipe(knn_type: u8, k_value: usize, vector_data: Vec<f32>) -> std::io::Result<()> {
+pub fn get_knn_pipe(knn_type: u8, k_value: usize, vector_data: Vec<f32>) -> Result<()> {
     // Create the Vector protobuf message
     let vector = Vector {
         values: vector_data,
@@ -128,7 +129,7 @@ pub fn get_knn_pipe(knn_type: u8, k_value: usize, vector_data: Vec<f32>) -> std:
     Ok(())
 }
 
-pub fn print_tree_debug_pipe() -> std::io::Result<()> {
+pub fn print_tree_debug_pipe() -> Result<()> {
     // Create the PrintTree protobuf message
     let print_tree = PrintTree {};
 

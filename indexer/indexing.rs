@@ -68,7 +68,7 @@ pub fn distance(a: Vec<f32>, b: Vec<f32>, dist_type: KNNType) -> f32 {
                 .zip(b.iter())
                 .map(|(&x, &y)| (x - y) * (x - y))
                 .collect();
-            return score.iter().sum::<f32>().sqrt();
+            score.iter().sum::<f32>().sqrt()
         }
         KNNType::Manhattan => {
             let score: Vec<f32> = a
@@ -76,7 +76,7 @@ pub fn distance(a: Vec<f32>, b: Vec<f32>, dist_type: KNNType) -> f32 {
                 .zip(b.iter())
                 .map(|(&x, &y)| (x - y).abs())
                 .collect();
-            return score.iter().sum::<f32>();
+            score.iter().sum::<f32>()
         }
         KNNType::Hamming => {
             let score: Vec<f32> = a
@@ -84,7 +84,7 @@ pub fn distance(a: Vec<f32>, b: Vec<f32>, dist_type: KNNType) -> f32 {
                 .zip(b.iter())
                 .map(|(&x, &y)| (if x != y { 1f32 } else { 0f32 }))
                 .collect();
-            return score.iter().sum::<f32>();
+            score.iter().sum::<f32>()
         }
         KNNType::Cosine => {
             let p_score: Vec<f32> = a.iter().zip(b.iter()).map(|(&x, &y)| x * y).collect();
@@ -93,7 +93,8 @@ pub fn distance(a: Vec<f32>, b: Vec<f32>, dist_type: KNNType) -> f32 {
             let q = q_score.iter().sum::<f32>().sqrt();
             let r_score: Vec<f32> = b.iter().map(|&n| n * n).collect();
             let r = r_score.iter().sum::<f32>().sqrt();
-            return p / (q * r);
+            // Need to add an epsilon for zero vector case?
+            p / (q * r)
         }
     }
 }
@@ -114,7 +115,7 @@ pub trait Indexer {
             eprintln!("Failed to create pipe: {}", e);
             return;
         }
-        
+
         let pipe = match OpenOptions::new().read(true).open(PIPE_PATH) {
             Ok(pipe) => {
                 // Check if the file is a named pipe
@@ -192,8 +193,7 @@ pub trait Indexer {
                                 let values = vector.values;
 
                                 // Convert protobuf enum to our enum
-                                let knn_type = match ProtoKnnType::try_from(get_knn.knn_type as i32)
-                                {
+                                let knn_type = match ProtoKnnType::try_from(get_knn.knn_type) {
                                     Ok(ProtoKnnType::Euclidean) => KNNType::Euclidean,
                                     Ok(ProtoKnnType::Manhattan) => KNNType::Manhattan,
                                     Ok(ProtoKnnType::Hamming) => KNNType::Hamming,

@@ -3,8 +3,8 @@
 #[cfg(test)]
 mod tests {
     use crate::database::types;
-    use crate::indexer::indexing_models::kd_tree;
     use crate::indexer::indexing::Indexer;
+    use crate::indexer::indexing_models::kd_tree;
     use kd_tree::KDTree;
     use rand::prelude::*;
     use types::{Data, DataType, VectorData};
@@ -16,7 +16,7 @@ mod tests {
             embedding_type: String::from("text"),
         };
         let data = Data {
-            vector: vector,
+            vector,
             payload: String::from("Hello"),
             data_type: DataType::Text,
         };
@@ -29,7 +29,7 @@ mod tests {
             embedding_type: String::from("image"),
         };
         let data = Data {
-            vector: vector,
+            vector,
             payload: String::from("Hello"),
             data_type: DataType::Image,
         };
@@ -42,7 +42,7 @@ mod tests {
             embedding_type: String::from("binary"),
         };
         let data = Data {
-            vector: vector,
+            vector,
             payload: String::from("Hello"),
             data_type: DataType::Blob,
         };
@@ -55,7 +55,7 @@ mod tests {
             embedding_type: String::from("audio"),
         };
         let data = Data {
-            vector: vector,
+            vector,
             payload: String::from("Hello"),
             data_type: DataType::Audio,
         };
@@ -72,12 +72,11 @@ mod tests {
             vector: randoms,
             embedding_type: String::from("text"),
         };
-        let data = Data {
-            vector: vector,
+        Data {
+            vector,
             payload: String::from("Hello"),
             data_type: DataType::Text,
-        };
-        return data;
+        }
     }
 
     #[test]

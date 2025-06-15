@@ -1,0 +1,10 @@
+{
+  "rust-analyzer.checkOnSave.command": "clippy",
+  
+	// Rust: save on format
+	"[rust]": {
+		"editor.formatOnSave": true,
+		"editor.formatOnPaste": true,
+		"editor.defaultFormatter": "rust-lang.rust-analyzer"
+  }
+}

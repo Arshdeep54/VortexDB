@@ -15,7 +15,7 @@ struct VectorizationRequest {
 
 #[derive(Deserialize)]
 pub struct VectorResponse {
-    text: String,
+    text: String, //What is this intended to do?
     pub vector: Vec<f32>,
 }
 
@@ -27,7 +27,7 @@ pub fn vectorise(input: &str, _pooling_strategy: &str) -> VectorResponse {
     for byte in input.bytes() {
         hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
     }
-    
+
     // Create a fixed-size vector of 10 elements
     let vector: Vec<f32> = (0..10)
         .map(|i| {
@@ -54,7 +54,7 @@ pub fn vectorise(input: &str, pooling_strategy: &str) -> VectorResponse {
         })
         .send()
         .expect("Failed to send request");
-    
+
     response
         .json::<VectorResponse>()
         .expect("Failed to parse vector response")

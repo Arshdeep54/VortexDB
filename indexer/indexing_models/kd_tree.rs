@@ -89,7 +89,7 @@ impl KDTreeNode {
         let axis_dist = distance(point.clone(), self.vector.clone(), knn_type);
         if axis_dist <= my_distances.peek().unwrap().distance {
             // self can only be nearer than worst if axis_dist is less than worst_dist because axis_dist is a lower bound for self_dist
-            let self_dist = distance(point.clone(), self.vector.clone(), knn_type.clone());
+            let self_dist = distance(point.clone(), self.vector.clone(), knn_type);
             if self_dist < my_distances.peek().unwrap().distance {
                 my_distances.pop();
                 my_distances.push(DataHeap {
@@ -154,7 +154,6 @@ impl Indexer for KDTree {
     // Add a node
     // If the dimension of the tree is zero, then it becomes equal to the input data
     fn add_node(&mut self, data: (String, Vec<f32>), depth: usize) {
-
         println!("Adding node: {:?}", data);
 
         if self._root.is_none() {
@@ -197,14 +196,12 @@ impl Indexer for KDTree {
                     current_node = current_node.left.as_deref_mut().unwrap();
                     current_depth += 1;
                 }
+            } else if current_node.right.is_none() {
+                current_node.right = Some(Box::new(KDTreeNode::new(data, current_dimension)));
+                break;
             } else {
-                if current_node.right.is_none() {
-                    current_node.right = Some(Box::new(KDTreeNode::new(data, current_dimension)));
-                    break;
-                } else {
-                    current_node = current_node.right.as_deref_mut().unwrap();
-                    current_depth += 1;
-                }
+                current_node = current_node.right.as_deref_mut().unwrap();
+                current_depth += 1;
             }
         }
     }
@@ -248,7 +245,6 @@ impl Indexer for KDTree {
         for point in heap.iter() {
             println!("{}", point.key);
         }
-        
     }
 
     fn _root(&self) -> Option<&dyn Node> {
@@ -257,7 +253,6 @@ impl Indexer for KDTree {
 }
 
 impl KDTree {
-
     // traversal
     fn traversal(&self, k_value: usize) -> Vec<(String, Vec<f32>)> {
         let mut result: Vec<(String, Vec<f32>)> = Vec::new();
@@ -287,13 +282,10 @@ fn inorder_traversal_helper(
     result: &mut Vec<(String, Vec<f32>)>,
     k_value: usize,
 ) -> Option<bool> {
-    if node.is_none() {
-        return None;
-    }
     if k_value != 0 && k_value <= result.len() {
         return None;
     }
-    let current_node = node.unwrap();
+    let current_node = node?;
     inorder_traversal_helper(current_node.to_owned().left.as_deref(), result, k_value);
     result.push((current_node.key.clone(), current_node.vector.clone()));
     inorder_traversal_helper(current_node.to_owned().right.as_deref(), result, k_value);

@@ -39,14 +39,14 @@ impl Database {
 
         //Open the database
         let database = Database {
-            db: db,
+            db,
             name: name.to_string(),
             backup_path: path.to_string(),
-            backup_engine: backup_engine,
+            backup_engine,
             wal_ttl: WAL_TTL,
         };
 
-        return Ok(database);
+        Ok(database)
     }
 
     pub fn open_database(name: &str, path: &str) -> Result<Database, err> {
@@ -58,14 +58,14 @@ impl Database {
         restore_options.set_keep_log_files(true);
 
         backup_engine
-            .restore_from_latest_backup(format!("/tmp/{}", name), &path, &restore_options)
+            .restore_from_latest_backup(format!("/tmp/{}", name), path, &restore_options)
             .unwrap();
 
         Database::create_database(name, path)
     }
 
     pub fn get_current_path(&self) -> String {
-        return self.backup_path.clone();
+        self.backup_path.clone()
     }
 
     pub fn insert_in_database(&mut self, data: Data) -> Result<String, err> {
@@ -74,30 +74,23 @@ impl Database {
         hasher.update(&value);
         let key = hasher.finalize();
         let key_string = format!("{:x}", key);
-        match self.db.put(&key, value.as_ref() as &[u8]) {
+        match self.db.put(key, value.as_ref() as &[u8]) {
             Ok(_) => {
-                if let Err(e) = db_thread::add_node_pipe((key_string.clone(), data.vector.vector), 0) {
+                if let Err(e) =
+                    db_thread::add_node_pipe((key_string.clone(), data.vector.vector), 0)
+                {
                     eprintln!("Failed to add node to pipe: {}", e);
                     // Optionally, you could return an error here instead of just logging it
                 }
-                return Ok(key_string);
+                Ok(key_string)
             }
-            Err(e) => {
-                return Err(e);
-            }
-        };
+            Err(e) => Err(e),
+        }
     }
 
     pub fn delete_database(&self) -> Result<(), err> {
         let options = Options::default();
-        match DB::destroy(&options, format!("tmp/{}", self.name)) {
-            Ok(()) => {
-                return Ok(());
-            }
-            Err(e) => {
-                return Err(e);
-            }
-        }
+        DB::destroy(&options, format!("tmp/{}", self.name))
     }
 
     pub fn delete_from_database_with_value(&mut self, data: Data) -> Result<Option<()>, err> {
@@ -107,7 +100,7 @@ impl Database {
         let key = hasher.finalize();
         let key_string = format!("{:x}", key);
 
-        match self.db.get(&key) {
+        match self.db.get(key) {
             Ok(Some(_)) => {
                 if let Err(e) = db_thread::delete_node_pipe(key_string) {
                     eprintln!("Failed to delete node from pipe: {}", e);
@@ -156,19 +149,13 @@ impl Database {
                 match self.db.get(&key) {
                     Ok(Some(value)) => {
                         let vec = deserialize(&value);
-                        return Ok(Ok(Some(vec)));
+                        Ok(Ok(Some(vec)))
                     }
-                    Ok(None) => {
-                        return Ok(Ok(None));
-                    }
-                    Err(e) => {
-                        return Ok(Err(e));
-                    }
+                    Ok(None) => Ok(Ok(None)),
+                    Err(e) => Ok(Err(e)),
                 }
             }
-            Err(e) => {
-                return Err(e);
-            }
+            Err(e) => Err(e),
         }
     }
 
@@ -180,12 +167,10 @@ impl Database {
     ) -> Result<String, String> {
         // Convert all this data to a string and call the pipe function
         match db_thread::get_knn_pipe(k_type, k_value, givenvec) {
-            Ok(_) => {
-                return Ok(format!("Finding knn...",));
-            }
+            Ok(_) => Ok("Finding knn...".to_owned()),
             Err(e) => {
                 eprintln!("Failed to write to named pipe: {}", e);
-                return Err(format!("Failed to write to named pipe: {}", e));
+                Err(format!("Failed to write to named pipe: {}", e))
             }
         }
     }

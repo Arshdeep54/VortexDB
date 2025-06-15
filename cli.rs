@@ -1,5 +1,5 @@
 use crate::database::{db, db_thread, dbpath, keygen, types};
-use crate::indexer::indexing::{self, Indexer, ensure_pipe_exists};
+use crate::indexer::indexing::{self, ensure_pipe_exists, Indexer};
 use crate::indexer::indexing_models::kd_tree::KDTree;
 use crate::vectorisers::vectoriser;
 use db::Database;
@@ -16,7 +16,7 @@ use rocksdb::IteratorMode;
 fn clear_screen() {
     // Add a small delay for better user experience
     std::thread::sleep(std::time::Duration::from_millis(500));
-    
+
     #[cfg(target_os = "windows")]
     {
         let _ = std::process::Command::new("cmd")
@@ -25,8 +25,7 @@ fn clear_screen() {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = std::process::Command::new("clear")
-            .status();
+        let _ = std::process::Command::new("clear").status();
     }
 }
 
@@ -87,7 +86,7 @@ fn show_databases(databases: &mut HashMap<String, String>) {
     }
 }
 
-fn use_databases(mut databases: &mut HashMap<String, String>) {
+fn use_databases(databases: &mut HashMap<String, String>) {
     println!("Enter name of database");
 
     let mut input = String::new();
@@ -100,16 +99,15 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
         return;
     }
 
-    
-    let mut database: Option<Database> = valid_database(&mut databases, input.trim());
-    
+    let mut database: Option<Database> = valid_database(databases, input.trim());
+
     if database.is_none() {
-        let exit = change_path(&mut databases, input.trim());
+        let exit = change_path(databases, input.trim());
         if exit {
             databases.remove(input.trim());
             return;
         } else {
-            database = valid_database(&mut databases, input.trim());
+            database = valid_database(databases, input.trim());
         }
     }
 
@@ -129,7 +127,7 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
             println!("Pipe does not exist: {:?}", err);
             return;
         }
-        
+
         match choice.trim() {
             "1" => {
                 let mut kdtree = KDTree::new();
@@ -155,7 +153,7 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
     }
 
     let database = &mut database.unwrap();
-    
+
     database.sync_with_indexer();
 
     loop {
@@ -207,7 +205,7 @@ fn use_databases(mut databases: &mut HashMap<String, String>) {
     }
 }
 
-fn add_databases(mut databases: &mut HashMap<String, String>) {
+fn add_databases(databases: &mut HashMap<String, String>) {
     println!("Enter the database name");
     let mut name = String::new();
     io::stdin()
@@ -217,13 +215,12 @@ fn add_databases(mut databases: &mut HashMap<String, String>) {
         println!("This name already exists");
         return;
     }
-    if !change_path(&mut databases, name.trim()) {
+    if !change_path(databases, name.trim()) {
         println!("Created database successfully");
-        return;
     }
 }
 
-fn delete_databases(mut databases: &mut HashMap<String, String>) {
+fn delete_databases(databases: &mut HashMap<String, String>) {
     println!("Enter the database name");
     let mut input = String::new();
     io::stdin()
@@ -231,25 +228,23 @@ fn delete_databases(mut databases: &mut HashMap<String, String>) {
         .expect("Failed to read line");
 
     if databases.contains_key(input.trim()) {
-        let exit = change_path(&mut databases, &input);
+        let exit = change_path(databases, &input);
         if exit {
             return;
         }
 
-        let database = valid_database(&mut databases, input.trim()).unwrap();
+        let database = valid_database(databases, input.trim()).unwrap();
         delete_database(&database);
     } else {
         println!("Database does not exist");
     }
 }
 
-fn valid_database(
-    databases: &mut HashMap<String, String>,
-    input: &str,
-) -> Option<Database> {
+fn valid_database(databases: &mut HashMap<String, String>, input: &str) -> Option<Database> {
+    //TODO: If path does not exist then create the path
     let file_path = databases.get(input).unwrap();
     let mut database: Option<Database> = None;
-    if check_path(&file_path) {
+    if check_path(file_path) {
         println!("Path is valid, validating database...");
         if check_database(file_path) {
             println!("Database exists on current path");
@@ -275,7 +270,7 @@ fn valid_database(
         println!("Path in .env file is invalid");
     }
 
-    return database;
+    database
 }
 
 fn change_path(databases: &mut HashMap<String, String>, input: &str) -> bool {
@@ -323,7 +318,7 @@ fn change_path(databases: &mut HashMap<String, String>, input: &str) -> bool {
             }
         };
     }
-    return br;
+    br
 }
 
 fn delete_database(database: &Database) {
@@ -335,15 +330,7 @@ fn delete_database(database: &Database) {
 }
 
 fn insert_in_database(database: &mut Database) {
-    let data: Data;
-    match read_data() {
-        Some(v) => {
-            data = v;
-        }
-        None => {
-            return;
-        }
-    }
+    let Some(data) = read_data() else { return };
     println!("Inserting into a database...");
     match database.insert_in_database(data) {
         Ok(key) => {
@@ -376,16 +363,13 @@ fn get_from_database(database: &Database) {
             Ok(Some(v)) => println!("{:?}", v.payload),
             Ok(None) => {
                 println!("Key not found");
-                return;
             }
             Err(e) => {
                 println!("{}", e);
-                return;
             }
         },
         Err(e) => {
             println!("{}", e);
-            return;
         }
     }
 }
@@ -400,15 +384,7 @@ fn delete_from_database(database: &mut Database) {
         .expect("Failed to read line");
     match choice.trim() {
         "1" => {
-            let data: Data;
-            match read_data() {
-                Some(v) => {
-                    data = v;
-                }
-                None => {
-                    return;
-                }
-            }
+            let Some(data) = read_data() else { return };
             match database.delete_from_database_with_value(data) {
                 Ok(v) => match v {
                     Some(_) => {
@@ -438,7 +414,6 @@ fn delete_from_database(database: &mut Database) {
         }
         _ => {
             println!("Invalid choice");
-            return;
         }
     }
 }
@@ -466,7 +441,7 @@ fn read_data() -> Option<Data> {
         .read_line(&mut payload)
         .expect("Failed to read line");
 
-    let mut embedding_type = String::new();
+    let mut embedding_type: String = String::new();
     println!("Enter embedding type: ");
     io::stdin()
         .read_line(&mut embedding_type)
@@ -477,9 +452,9 @@ fn read_data() -> Option<Data> {
     let data: Data = Data {
         vector: VectorData {
             vector: vec.vector,
-            embedding_type: embedding_type,
+            embedding_type,
         },
-        payload: payload,
+        payload,
         data_type: datatype,
     };
 
@@ -494,16 +469,9 @@ fn read_data() -> Option<Data> {
         .expect("Failed to read line");
 
     match choice.trim() {
-        "1" => {
-            return Some(data);
-        }
-        "0" => {
-            return None;
-        }
-        _ => {
-            return None;
-        }
-    };
+        "1" => Some(data),
+        _ => None,
+    }
 }
 
 fn find_knn(database: &mut Database) {

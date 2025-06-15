@@ -6,21 +6,14 @@ use std::{collections::HashMap, env, io, io::Write, path::Path};
 pub fn check_path(file_path: &String) -> bool {
     dotenv().ok();
     let path = Path::new(file_path);
-    return path.exists();
+    path.exists()
 }
 
 pub fn check_database(file_path: &String) -> bool {
     dotenv().ok();
     let options = Options::default();
 
-    match DB::open_for_read_only(&options, file_path, false) {
-        Ok(_) => {
-            return true;
-        }
-        Err(_) => {
-            return false;
-        }
-    }
+    DB::open_for_read_only(&options, file_path, false).is_ok()
 }
 
 pub fn find_databases() -> HashMap<String, String> {
@@ -39,7 +32,7 @@ pub fn find_databases() -> HashMap<String, String> {
             env::var(db_path_var).unwrap(),
         );
     }
-    return collections;
+    collections
 }
 
 pub fn write_env(databases: &HashMap<String, String>) {
