@@ -1,5 +1,8 @@
+use log::{ debug, error, info, warn };
+
 use reqwest::blocking::Client;
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::{ Deserialize, Serialize };
+
 // use std::collections::HashMap;
 // use std::fs::File;
 // use std::io::{BufReader, BufRead};
@@ -21,21 +24,24 @@ pub struct VectorResponse {
 
 #[cfg(feature = "test_vectors")]
 pub fn vectorise(input: &str, _pooling_strategy: &str) -> VectorResponse {
-    println!("Using test vectoriser with fixed size vectors");
+    init_module_logger!("vectoriser");
+    info!("Using test vectoriser with fixed size vectors");
     // Generate a deterministic vector of size 10 based on the input
     let mut hash: u64 = 0;
     for byte in input.bytes() {
         hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
     }
-    
+
     // Create a fixed-size vector of 10 elements
     let vector: Vec<f32> = (0..10)
         .map(|i| {
             // Use the hash and position to generate a deterministic value
-            let value = ((hash + i as u64) % 100) as f32 / 100.0;
+            let value = (((hash + (i as u64)) % 100) as f32) / 100.0;
             value
         })
         .collect();
+
+    debug!("Generated test vector: {:?}", vector);
 
     VectorResponse {
         text: input.to_string(),
@@ -45,19 +51,36 @@ pub fn vectorise(input: &str, _pooling_strategy: &str) -> VectorResponse {
 
 #[cfg(not(feature = "test_vectors"))]
 pub fn vectorise(input: &str, pooling_strategy: &str) -> VectorResponse {
+    init_module_logger!("vectoriser");
+    info!("Sending vectorization request to API");
+
     let client = Client::new();
     let response = client
         .post("http://localhost:8000/vectorize/")
-        .json(&VectorizationRequest {
-            text: input.to_string(),
-            pooling_strategy: pooling_strategy.to_string(),
-        })
-        .send()
-        .expect("Failed to send request");
-    
-    response
-        .json::<VectorResponse>()
-        .expect("Failed to parse vector response")
+        .json(
+            &(VectorizationRequest {
+                text: input.to_string(),
+                pooling_strategy: pooling_strategy.to_string(),
+            })
+        )
+        .send();
+
+    match response {
+        Ok(resp) => {
+            info!("Request sent successfully. Status: {}", resp.status());
+            match resp.json::<VectorResponse>() {
+                Ok(vector_response) => vector_response,
+                Err(e) => {
+                    error!("Failed to parse response: {}", e);
+                    panic!("Vector response parsing failed");
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to send request: {}", e);
+            panic!("Vector request failed");
+        }
+    }
 }
 
 // // Reads from the named pipe and processes the vector

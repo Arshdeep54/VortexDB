@@ -1,10 +1,11 @@
 use crate::database::db_thread;
 use crate::database::keygen::*;
 use crate::database::types::Data;
-use hex::{decode, FromHexError as hexerr};
-use rocksdb::backup::{BackupEngine, BackupEngineOptions, RestoreOptions};
-use rocksdb::{DBWithThreadMode, Error as err, IteratorMode, Options, SingleThreaded, DB};
-use sha2::{Digest, Sha256};
+use hex::{ decode, FromHexError as hexerr };
+use rocksdb::backup::{ BackupEngine, BackupEngineOptions, RestoreOptions };
+use rocksdb::{ DBWithThreadMode, Error as err, IteratorMode, Options, SingleThreaded, DB };
+use sha2::{ Digest, Sha256 };
+use log::{ info, warn, error, debug };
 
 pub struct Database {
     pub db: DBWithThreadMode<SingleThreaded>,
@@ -76,8 +77,13 @@ impl Database {
         let key_string = format!("{:x}", key);
         match self.db.put(&key, value.as_ref() as &[u8]) {
             Ok(_) => {
-                if let Err(e) = db_thread::add_node_pipe((key_string.clone(), data.vector.vector), 0) {
-                    eprintln!("Failed to add node to pipe: {}", e);
+                if
+                    let Err(e) = db_thread::add_node_pipe(
+                        (key_string.clone(), data.vector.vector),
+                        0
+                    )
+                {
+                    error!("Failed to add node to pipe: {}", e);
                     // Optionally, you could return an error here instead of just logging it
                 }
                 return Ok(key_string);
@@ -110,7 +116,7 @@ impl Database {
         match self.db.get(&key) {
             Ok(Some(_)) => {
                 if let Err(e) = db_thread::delete_node_pipe(key_string) {
-                    eprintln!("Failed to delete node from pipe: {}", e);
+                    error!("Failed to delete node from pipe: {}", e);
                 }
                 match self.db.delete(key) {
                     Ok(_) => Ok(Some(())),
@@ -126,7 +132,7 @@ impl Database {
 
     pub fn delete_from_database_with_key(
         &mut self,
-        input: &str,
+        input: &str
     ) -> Result<Result<Option<()>, err>, hexerr> {
         match decode(input) {
             Ok(bytes) => {
@@ -134,7 +140,7 @@ impl Database {
                 match self.db.get(&key) {
                     Ok(Some(_)) => {
                         if let Err(e) = db_thread::delete_node_pipe(input.to_string()) {
-                            eprintln!("Failed to delete node from pipe: {}", e);
+                            error!("Failed to delete node from pipe: {}", e);
                         }
                         match self.db.delete(key) {
                             Ok(_) => Ok(Ok(Some(()))),
@@ -176,15 +182,15 @@ impl Database {
         &self,
         k_type: u8,
         k_value: usize,
-        givenvec: Vec<f32>,
+        givenvec: Vec<f32>
     ) -> Result<String, String> {
         // Convert all this data to a string and call the pipe function
         match db_thread::get_knn_pipe(k_type, k_value, givenvec) {
             Ok(_) => {
-                return Ok(format!("Finding knn...",));
+                return Ok(format!("Finding knn..."));
             }
             Err(e) => {
-                eprintln!("Failed to write to named pipe: {}", e);
+                error!("Failed to write to named pipe: {}", e);
                 return Err(format!("Failed to write to named pipe: {}", e));
             }
         }
@@ -193,16 +199,19 @@ impl Database {
     pub fn sync_with_indexer(&self) {
         // iterate through the database and send the data to the indexer
         let iter = self.db.iterator(IteratorMode::Start); //iterates from the start
-        println!("Syncing database with indexer...");
+        info!("Syncing database with indexer...");
         for item in iter {
             let (key, value) = item.unwrap();
-            let hex_strings: Vec<String> = key.iter().map(|b| format!("{:02x}", b)).collect();
+            let hex_strings: Vec<String> = key
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect();
             let result = hex_strings.join("");
             let vec = deserialize(&value);
             if let Err(e) = db_thread::add_node_pipe((result, vec.vector.vector), 0) {
-                eprintln!("Failed to add node to pipe during sync: {}", e);
+                error!("Failed to add node to pipe during sync: {}", e);
             }
         }
-        println!("Syncing complete.");
+        info!("Syncing complete.");
     }
 }

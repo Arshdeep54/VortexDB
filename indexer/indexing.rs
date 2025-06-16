@@ -1,17 +1,19 @@
 // use crate::database::db::Database;
-use crate::indexer::proto::indexer_thread::{Command, KnnType as ProtoKnnType};
+use crate::indexer::proto::indexer_thread::{ Command, KnnType as ProtoKnnType };
 use core::f32;
 use prost::Message;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fs::OpenOptions;
-use std::io::{BufReader, Read};
+use std::io::{ BufReader, Read };
 use std::os::unix::fs::FileTypeExt;
+use log::{ info, warn, error, debug };
 
 const PIPE_PATH: &str = "/tmp/db_pipe";
 
 // Ensure the pipe directory exists
 pub fn ensure_pipe_exists() -> std::io::Result<()> {
+    init_module_logger!("indexer");
     if let Some(parent) = std::path::Path::new(PIPE_PATH).parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -82,16 +84,26 @@ pub fn distance(a: Vec<f32>, b: Vec<f32>, dist_type: KNNType) -> f32 {
             let score: Vec<f32> = a
                 .iter()
                 .zip(b.iter())
-                .map(|(&x, &y)| (if x != y { 1f32 } else { 0f32 }))
+                .map(|(&x, &y)| if x != y { 1f32 } else { 0f32 })
                 .collect();
             return score.iter().sum::<f32>();
         }
         KNNType::Cosine => {
-            let p_score: Vec<f32> = a.iter().zip(b.iter()).map(|(&x, &y)| x * y).collect();
+            let p_score: Vec<f32> = a
+                .iter()
+                .zip(b.iter())
+                .map(|(&x, &y)| x * y)
+                .collect();
             let p = p_score.iter().sum::<f32>();
-            let q_score: Vec<f32> = a.iter().map(|&n| n * n).collect();
+            let q_score: Vec<f32> = a
+                .iter()
+                .map(|&n| n * n)
+                .collect();
             let q = q_score.iter().sum::<f32>().sqrt();
-            let r_score: Vec<f32> = b.iter().map(|&n| n * n).collect();
+            let r_score: Vec<f32> = b
+                .iter()
+                .map(|&n| n * n)
+                .collect();
             let r = r_score.iter().sum::<f32>().sqrt();
             return p / (q * r);
         }
@@ -99,9 +111,7 @@ pub fn distance(a: Vec<f32>, b: Vec<f32>, dist_type: KNNType) -> f32 {
 }
 
 pub trait Indexer {
-    fn new() -> Self
-    where
-        Self: Sized;
+    fn new() -> Self where Self: Sized;
     fn add_node(&mut self, data: (String, Vec<f32>), depth: usize);
     fn delete_node(&mut self, data: String);
     fn print_tree_for_debug(&self);
@@ -111,23 +121,25 @@ pub trait Indexer {
     fn db_thread(&mut self) {
         // Ensure the pipe exists before opening it
         if let Err(e) = ensure_pipe_exists() {
-            eprintln!("Failed to create pipe: {}", e);
+            error!("Failed to create pipe: {}", e);
             return;
         }
-        
+
         let pipe = match OpenOptions::new().read(true).open(PIPE_PATH) {
             Ok(pipe) => {
                 // Check if the file is a named pipe
-                let metadata = std::fs::metadata(PIPE_PATH)
+                let metadata = std::fs
+                    ::metadata(PIPE_PATH)
                     .expect("Unable to fetch metadata for the named pipe");
                 if !metadata.file_type().is_fifo() {
-                    eprintln!("The path is not a named pipe");
+                    error!("The path '{}' is not a named pipe", PIPE_PATH);
                     return;
                 }
+                info!("Successfully opened named pipe: {}", PIPE_PATH);
                 pipe
             }
             Err(e) => {
-                eprintln!("Failed to open pipe: {}", e);
+                error!("Failed to open pipe: {}", e);
                 return;
             }
         };
@@ -141,13 +153,14 @@ pub trait Indexer {
             match reader.read_exact(&mut size_buf) {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("Failed to read message size: {}", e);
+                    error!("Failed to read message size: {}", e);
                     break;
                 }
             }
 
             // Convert bytes to u32 (size of the message)
             let msg_size = u32::from_le_bytes(size_buf) as usize;
+            debug!("Reading message of size: {}", msg_size);
 
             // Prepare buffer
             buffer.clear();
@@ -155,9 +168,11 @@ pub trait Indexer {
 
             // Read the actual message
             match reader.read_exact(&mut buffer) {
-                Ok(_) => {}
+                Ok(_) => {
+                    debug!("Successfully read protobuf message of size: {}", msg_size);
+                }
                 Err(e) => {
-                    eprintln!("Failed to read message: {}", e);
+                    error!("Failed to read protobuf message: {}", e);
                     break;
                 }
             }
@@ -166,14 +181,24 @@ pub trait Indexer {
             match Command::decode(&buffer[..]) {
                 Ok(command) => {
                     match command.command {
-                        Some(crate::indexer::proto::indexer_thread::command::Command::AddNode(
-                            add_node,
-                        )) => {
+                        Some(
+                            crate::indexer::proto::indexer_thread::command::Command::AddNode(
+                                add_node,
+                            ),
+                        ) => {
                             if let Some(vector) = add_node.vector {
                                 let depth = add_node.depth as usize;
                                 let key = add_node.key;
                                 let values = vector.values;
+                                info!(
+                                    "Received AddNode command: key = {}, depth = {}, vector_len = {}",
+                                    key,
+                                    depth,
+                                    values.len()
+                                );
                                 self.add_node((key, values), depth);
+                            } else {
+                                warn!("AddNode command received with empty vector");
                             }
                         }
                         Some(
@@ -182,29 +207,38 @@ pub trait Indexer {
                             ),
                         ) => {
                             let key = delete_node.key;
+                            info!("Received DeleteNode command: key = {}", key);
                             self.delete_node(key);
                         }
-                        Some(crate::indexer::proto::indexer_thread::command::Command::GetKnn(
-                            get_knn,
-                        )) => {
+                        Some(
+                            crate::indexer::proto::indexer_thread::command::Command::GetKnn(
+                                get_knn,
+                            ),
+                        ) => {
                             if let Some(vector) = get_knn.vector {
                                 let k_value = get_knn.k_value as usize;
                                 let values = vector.values;
 
                                 // Convert protobuf enum to our enum
-                                let knn_type = match ProtoKnnType::try_from(get_knn.knn_type as i32)
+                                let knn_type = match
+                                    ProtoKnnType::try_from(get_knn.knn_type as i32)
                                 {
                                     Ok(ProtoKnnType::Euclidean) => KNNType::Euclidean,
                                     Ok(ProtoKnnType::Manhattan) => KNNType::Manhattan,
                                     Ok(ProtoKnnType::Hamming) => KNNType::Hamming,
                                     Ok(ProtoKnnType::Cosine) => KNNType::Cosine,
                                     _ => {
-                                        eprintln!("Unknown KNN type from protobuf");
+                                        warn!(
+                                            "Unknown KNN type from protobuf: {}",
+                                            get_knn.knn_type
+                                        );
                                         continue;
                                     }
                                 };
 
                                 self.get_knn(knn_type, k_value, values);
+                            } else {
+                                warn!("GetKnn command received with empty vector");
                             }
                         }
                         Some(
@@ -213,12 +247,12 @@ pub trait Indexer {
                             self.print_tree_for_debug();
                         }
                         None => {
-                            eprintln!("Received empty command");
+                            error!("Received empty command");
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to decode protobuf message: {}", e);
+                    error!("Failed to decode protobuf message: {}", e);
                 }
             }
         }
@@ -236,6 +270,6 @@ pub trait Node {
         &'a self,
         input: Vec<f32>,
         knn_type: KNNType,
-        heap: &'a mut BinaryHeap<DataHeap>,
+        heap: &'a mut BinaryHeap<DataHeap>
     ) -> (&'a mut BinaryHeap<DataHeap>, usize);
 }
