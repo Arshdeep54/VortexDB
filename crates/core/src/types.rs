@@ -1,0 +1,32 @@
+pub type PointId = u64;
+
+/// Type of vector element.
+pub type Element = f32;
+// pub type ElementHalf = f16; - Unstable https://github.com/rust-lang/rust/issues/116909
+pub type ElementByte = u8;
+
+// Dense Vector and Vector are considered same
+// Sparse vector implementation not supported yet. Refer lib/sparse/src/common/sparse_vector.rs
+pub type DenseVector = Vec<Element>;
+
+pub enum StoredVector {
+    Dense(DenseVector),
+}
+
+pub struct Payload {}
+
+pub struct Point {
+    pub id: PointId,
+    pub vector: Option<DenseVector>,
+    pub payload: Option<Payload>
+}
+
+// Query Vector. Basically the type of query results that can be generated. Not implementing this but referencing here for furture reference
+// #[derive(Debug, Clone)]
+// pub enum QueryVector {
+//     Nearest(VectorInternal),
+//     RecommendBestScore(RecoQuery<VectorInternal>),
+//     RecommendSumScores(RecoQuery<VectorInternal>),
+//     Discovery(DiscoveryQuery<VectorInternal>),
+//     Context(ContextQuery<VectorInternal>),
+// }

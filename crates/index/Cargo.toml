@@ -1,0 +1,11 @@
+# crates/index/Cargo.toml
+
+[package]
+name = "index"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+core = { path = "../core" }
+
