@@ -1,3 +1,5 @@
+// Rewrite needed
+
 //For rocks-db
 use super::types::Data;
 use crate::kd_tree::KDTree;
@@ -14,6 +16,10 @@ use rocksdb::{
     DB,
 };
 use sha2::{Digest, Sha256};
+
+pub struct RocksDbStorage {
+    
+}
 
 pub struct Database {
     pub db: DBWithThreadMode<SingleThreaded>,
