@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 pub type PointId = u64;
 
 /// Type of vector element.
@@ -13,6 +15,7 @@ pub enum StoredVector {
     Dense(DenseVector),
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct Payload {
     // Define here how payload is managed
 }

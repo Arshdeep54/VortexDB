@@ -1,4 +1,7 @@
+#[derive(Debug)]
 pub enum DbError {
     ParseError,
-    StorageError,
+    StorageError(String),
+    SerializationError(String),
+    DeserializationError,
 }

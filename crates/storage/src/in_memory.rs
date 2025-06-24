@@ -18,7 +18,7 @@ impl Default for MemoryStorage {
 }
 
 impl StorageEngine for MemoryStorage {
-    fn insert_vector(&self, _id: PointId, _vector: DenseVector) -> Result<(), std::fmt::Error> {
+    fn insert_vector(&self, _id: PointId, _vector: DenseVector) -> Result<(), DbError> {
         Ok(())
     }
     fn insert_payload(&self, _id: PointId, _payload: Payload) -> Result<(), DbError> {
@@ -33,7 +33,7 @@ impl StorageEngine for MemoryStorage {
     fn get_payload(&self, _id: PointId) -> Result<Option<Payload>, DbError> {
         Ok(None)
     }
-    fn get_vector(&self, _id: PointId) -> Result<Option<DenseVector>, std::fmt::Error> {
+    fn get_vector(&self, _id: PointId) -> Result<Option<DenseVector>, DbError> {
         Ok(None)
     }
 }
