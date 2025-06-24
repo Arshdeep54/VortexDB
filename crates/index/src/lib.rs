@@ -1,5 +1,5 @@
+use core::{DenseVector, PointId};
 use std::fmt::Error;
-use core::{ DenseVector, PointId, };
 
 pub trait VectorIndex {
     fn insert(&self, vector: DenseVector) -> Result<(), Error>;

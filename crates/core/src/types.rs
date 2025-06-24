@@ -13,12 +13,14 @@ pub enum StoredVector {
     Dense(DenseVector),
 }
 
-pub struct Payload {}
+pub struct Payload {
+    // Define here how payload is managed
+}
 
 pub struct Point {
     pub id: PointId,
     pub vector: Option<DenseVector>,
-    pub payload: Option<Payload>
+    pub payload: Option<Payload>,
 }
 
 // Query Vector. Basically the type of query results that can be generated. Not implementing this but referencing here for furture reference
