@@ -5,9 +5,13 @@ use std::sync::Arc;
 use crate::rocks_db::RocksDbStorage;
 
 pub trait StorageEngine {
-    fn insert_vector(&self, id: PointId, vector: DenseVector) -> Result<(), DbError>;
+    fn insert_point(
+        &self,
+        id: PointId,
+        vector: Option<DenseVector>,
+        payload: Option<Payload>,
+    ) -> Result<(), DbError>;
     fn get_vector(&self, id: PointId) -> Result<Option<DenseVector>, DbError>;
-    fn insert_payload(&self, id: PointId, payload: Payload) -> Result<(), DbError>;
     fn get_payload(&self, id: PointId) -> Result<Option<Payload>, DbError>;
     fn delete_point(&self, id: PointId) -> Result<(), DbError>;
     fn contains_point(&self, id: PointId) -> Result<bool, DbError>;

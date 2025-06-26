@@ -18,10 +18,12 @@ impl Default for MemoryStorage {
 }
 
 impl StorageEngine for MemoryStorage {
-    fn insert_vector(&self, _id: PointId, _vector: DenseVector) -> Result<(), DbError> {
-        Ok(())
-    }
-    fn insert_payload(&self, _id: PointId, _payload: Payload) -> Result<(), DbError> {
+    fn insert_point(
+        &self,
+        _id: PointId,
+        _vector: Option<DenseVector>,
+        _payload: Option<Payload>,
+    ) -> Result<(), DbError> {
         Ok(())
     }
     fn contains_point(&self, _id: PointId) -> Result<bool, DbError> {

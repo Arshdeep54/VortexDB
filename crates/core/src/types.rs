@@ -20,6 +20,7 @@ pub struct Payload {
     // Define here how payload is managed
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Point {
     pub id: PointId,
     pub vector: Option<DenseVector>,

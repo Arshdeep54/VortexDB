@@ -2,8 +2,8 @@
 
 use crate::StorageEngine;
 use bincode::{deserialize, serialize};
-use core::{DbError, DenseVector, Payload, PointId};
-use rocksdb::{ColumnFamily, Error, Options, DB};
+use core::{DbError, DenseVector, Payload, Point, PointId};
+use rocksdb::{Error, Options, DB};
 use std::path::PathBuf;
 
 //TODO: Implement RocksDbStorage with necessary fields and implementations
@@ -29,14 +29,10 @@ impl RocksDbStorage {
         options.optimize_level_style_compaction(512 * 1024 * 1024);
 
         options.create_if_missing(true);
-        options.create_missing_column_families(true);
 
         let converted_path = path.into();
 
-        // Two different column families, one for storing vectors and another for payloads
-        let cf_names = vec!["vectors", "payloads"];
-
-        let db = DB::open_cf(&options, converted_path.clone(), cf_names)
+        let db = DB::open(&options, converted_path.clone())
             .map_err(|e| DbError::StorageError(e.into_string()))?;
 
         Ok(RocksDbStorage {
@@ -45,73 +41,50 @@ impl RocksDbStorage {
         })
     }
 
-    pub fn vectors_cf(&self) -> Result<&ColumnFamily, DbError> {
-        self.db
-            .cf_handle("vectors")
-            .ok_or_else(|| DbError::StorageError("Vectors column family not found".into()))
-    }
-
-    pub fn payloads_cf(&self) -> Result<&ColumnFamily, DbError> {
-        self.db
-            .cf_handle("payloads")
-            .ok_or_else(|| DbError::StorageError("Payloads column family not found".into()))
-    }
-
     pub fn get_current_path(&self) -> PathBuf {
         self.path.clone()
     }
 }
 
 impl StorageEngine for RocksDbStorage {
-    fn insert_vector(&self, id: PointId, vector: DenseVector) -> Result<(), DbError> {
+    fn insert_point(
+        &self,
+        id: PointId,
+        vector: Option<DenseVector>,
+        payload: Option<Payload>,
+    ) -> Result<(), DbError> {
         let key = id.to_string();
-        let value = serialize(&vector).map_err(|e| DbError::SerializationError(e.to_string()))?;
-        let vectors_cf = self.vectors_cf()?;
-        match self.db.put_cf(vectors_cf, key, value.as_ref() as &[u8]) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(DbError::StorageError(e.into_string())),
-        }
-    }
-
-    fn insert_payload(&self, id: PointId, payload: Payload) -> Result<(), DbError> {
-        let key = id.to_string();
-        let value = serialize(&payload).map_err(|e| DbError::SerializationError(e.to_string()))?;
-        let payloads_cf = self.payloads_cf()?;
-        match self.db.put_cf(payloads_cf, key, value.as_ref() as &[u8]) {
+        let point = Point {
+            id,
+            vector,
+            payload,
+        };
+        let value = serialize(&point).map_err(|e| DbError::SerializationError(e.to_string()))?;
+        match self.db.put(key, value.as_ref() as &[u8]) {
             Ok(_) => Ok(()),
             Err(e) => Err(DbError::StorageError(e.into_string())),
         }
     }
 
     fn contains_point(&self, id: PointId) -> Result<bool, DbError> {
-        // Check in both column families if there is an entry or not
+        // Efficient lookup inspired from https://github.com/facebook/rocksdb/issues/11586#issuecomment-1890429488
         let key = id.to_string();
-        let vectors_cf = self.vectors_cf()?;
-        let contains_vector = self
-            .db
-            .get_pinned_cf(vectors_cf, key.clone())
-            .map_err(|e| DbError::StorageError(e.into_string()))?;
-
-        let payload_cf = self.payloads_cf()?;
-        let contains_payload = self
-            .db
-            .get_pinned_cf(payload_cf, key)
-            .map_err(|e| DbError::StorageError(e.into_string()))?;
-
-        Ok(contains_vector.is_some() || contains_payload.is_some())
+        if self.db.key_may_exist(key.clone()) {
+            let key_exist = self
+                .db
+                .get(key)
+                .map_err(|e| DbError::StorageError(e.into_string()))?
+                .is_some();
+            Ok(key_exist)
+        } else {
+            Ok(false)
+        }
     }
 
     fn delete_point(&self, id: PointId) -> Result<(), DbError> {
-        // Delete both the vector and payload if they exist
         let key = id.to_string();
-        let vectors_cf = self.vectors_cf()?;
-        let payloads_cf = self.payloads_cf()?;
-
         self.db
-            .delete_cf(vectors_cf, key.clone())
-            .map_err(|e| DbError::StorageError(e.into_string()))?;
-        self.db
-            .delete_cf(payloads_cf, key)
+            .delete(key)
             .map_err(|e| DbError::StorageError(e.into_string()))?;
 
         Ok(())
@@ -119,36 +92,34 @@ impl StorageEngine for RocksDbStorage {
 
     fn get_payload(&self, id: PointId) -> Result<Option<Payload>, DbError> {
         let key = id.to_string();
-        let payloads_cf = self.payloads_cf()?;
         let Some(value_serialized) = self
             .db
-            .get_cf(payloads_cf, key)
+            .get(key)
             .map_err(|e| DbError::StorageError(e.into_string()))?
         else {
             return Ok(None); // This should not return error but rather give None
         };
 
         let value =
-            deserialize::<Payload>(&value_serialized).map_err(|_| DbError::DeserializationError)?;
+            deserialize::<Point>(&value_serialized).map_err(|_| DbError::DeserializationError)?;
 
-        Ok(Some(value))
+        Ok(value.payload)
     }
 
     fn get_vector(&self, id: PointId) -> Result<Option<DenseVector>, DbError> {
         let key = id.to_string();
-        let vectors_cf = self.vectors_cf()?;
         let Some(value_serialized) = self
             .db
-            .get_cf(vectors_cf, key)
+            .get(key)
             .map_err(|e| DbError::StorageError(e.into_string()))?
         else {
             return Ok(None); // This should not return error but rather give None
         };
 
-        let value = deserialize::<DenseVector>(&value_serialized)
-            .map_err(|_| DbError::DeserializationError)?;
+        let value =
+            deserialize::<Point>(&value_serialized).map_err(|_| DbError::DeserializationError)?;
 
-        Ok(Some(value))
+        Ok(value.vector)
     }
 }
 
@@ -173,25 +144,26 @@ mod tests {
     fn test_insert_and_get_vector() {
         let (db, path) = create_test_db();
         let id = 1;
-        let vector = vec![0.1, 0.2, 0.3];
+        let vector = Some(vec![0.1, 0.2, 0.3]);
+        let payload = None;
 
-        assert!(db.insert_vector(id, vector.clone()).is_ok());
+        assert!(db.insert_point(id, vector.clone(), payload).is_ok());
         let result = db.get_vector(id).unwrap();
-        assert_eq!(result, Some(vector));
+        assert_eq!(result, vector);
 
         std::fs::remove_dir_all(path).unwrap_or_default();
     }
 
-    // We need to first define payload well first to get this functionality
     #[test]
     fn test_insert_and_get_payload() {
         let (db, path) = create_test_db();
         let id = 2;
-        let payload = Payload {};
+        let payload = Some(Payload {});
+        let vector = None;
 
-        assert!(db.insert_payload(id, payload).is_ok());
+        assert!(db.insert_point(id, vector, payload).is_ok());
         let result = db.get_payload(id).unwrap();
-        assert_eq!(result, Some(payload));
+        assert_eq!(result, payload);
 
         std::fs::remove_dir_all(path).unwrap_or_default();
     }
@@ -203,8 +175,8 @@ mod tests {
 
         assert!(!db.contains_point(id).unwrap());
 
-        let vector = vec![0.4, 0.5, 0.6];
-        db.insert_vector(id, vector).unwrap();
+        let vector = Some(vec![0.4, 0.5, 0.6]);
+        db.insert_point(id, vector, None).unwrap();
 
         assert!(db.contains_point(id).unwrap());
 
@@ -219,8 +191,7 @@ mod tests {
         let vector = vec![0.7, 0.8, 0.9];
         let payload = Payload {};
 
-        db.insert_vector(id, vector).unwrap();
-        db.insert_payload(id, payload).unwrap();
+        db.insert_point(id, Some(vector), Some(payload)).unwrap();
 
         assert!(db.contains_point(id).unwrap());
 
