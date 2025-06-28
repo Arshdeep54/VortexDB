@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 pub type PointId = u64;
 
 /// Type of vector element.
@@ -13,12 +15,16 @@ pub enum StoredVector {
     Dense(DenseVector),
 }
 
-pub struct Payload {}
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Payload {
+    // Define here how payload is managed
+}
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Point {
     pub id: PointId,
     pub vector: Option<DenseVector>,
-    pub payload: Option<Payload>
+    pub payload: Option<Payload>,
 }
 
 // Query Vector. Basically the type of query results that can be generated. Not implementing this but referencing here for furture reference

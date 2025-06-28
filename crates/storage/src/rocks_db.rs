@@ -1,164 +1,226 @@
 // Rewrite needed
 
-//For rocks-db
-use super::types::Data;
-use crate::kd_tree::KDTree;
-use crate::keygen::*;
-use hex::{decode, FromHexError as hexerr};
-use rocksdb::{
-    DBWithThreadMode,
-    Error as err,
-    IteratorMode,
-    Options,
-    // WriteBatch,
-    // DBPinnableSlice,
-    SingleThreaded,
-    DB,
-};
-use sha2::{Digest, Sha256};
+use crate::StorageEngine;
+use bincode::{deserialize, serialize};
+use core::{DbError, DenseVector, Payload, Point, PointId};
+use rocksdb::{Error, Options, DB};
+use std::path::PathBuf;
 
+//TODO: Implement RocksDbStorage with necessary fields and implementations
+//TODO: Optimize the basic design
 pub struct RocksDbStorage {
-    
+    pub path: PathBuf,
+    pub db: DB,
 }
 
-pub struct Database {
-    pub db: DBWithThreadMode<SingleThreaded>,
-    pub path: String,
-    pub tree: KDTree,
+pub enum RocksDBStorageError {
+    RocksDBError(Error),
+    SerializationError,
 }
 
-impl Database {
-    pub fn create_switch_database(addr: String) -> Result<Database, err> {
+impl RocksDbStorage {
+    // Creates new db or switches to existing db
+    pub fn new(path: impl Into<PathBuf>) -> Result<Self, DbError> {
+        // Initialize a db at the given location
         let mut options = Options::default();
 
-        //Optimize RocksDB
+        // Optimize RocksDB
         options.increase_parallelism(12);
         options.optimize_level_style_compaction(512 * 1024 * 1024);
 
-        //Create the database if not already present
         options.create_if_missing(true);
 
-        //Open the database
-        let mut database = Database {
-            db: DB::open(&options, &addr).unwrap(),
-            path: addr,
-            tree: KDTree::new(),
+        let converted_path = path.into();
+
+        let db = DB::open(&options, converted_path.clone())
+            .map_err(|e| DbError::StorageError(e.into_string()))?;
+
+        Ok(RocksDbStorage {
+            path: converted_path,
+            db,
+        })
+    }
+
+    pub fn get_current_path(&self) -> PathBuf {
+        self.path.clone()
+    }
+}
+
+impl StorageEngine for RocksDbStorage {
+    fn insert_point(
+        &self,
+        id: PointId,
+        vector: Option<DenseVector>,
+        payload: Option<Payload>,
+    ) -> Result<(), DbError> {
+        let key = id.to_string();
+        let point = Point {
+            id,
+            vector,
+            payload,
+        };
+        let value = serialize(&point).map_err(|e| DbError::SerializationError(e.to_string()))?;
+        match self.db.put(key, value.as_ref() as &[u8]) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(DbError::StorageError(e.into_string())),
+        }
+    }
+
+    fn contains_point(&self, id: PointId) -> Result<bool, DbError> {
+        // Efficient lookup inspired from https://github.com/facebook/rocksdb/issues/11586#issuecomment-1890429488
+        let key = id.to_string();
+        if self.db.key_may_exist(key.clone()) {
+            let key_exist = self
+                .db
+                .get(key)
+                .map_err(|e| DbError::StorageError(e.into_string()))?
+                .is_some();
+            Ok(key_exist)
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn delete_point(&self, id: PointId) -> Result<(), DbError> {
+        let key = id.to_string();
+        self.db
+            .delete(key)
+            .map_err(|e| DbError::StorageError(e.into_string()))?;
+
+        Ok(())
+    }
+
+    fn get_payload(&self, id: PointId) -> Result<Option<Payload>, DbError> {
+        let key = id.to_string();
+        let Some(value_serialized) = self
+            .db
+            .get(key)
+            .map_err(|e| DbError::StorageError(e.into_string()))?
+        else {
+            return Ok(None); // This should not return error but rather give None
         };
 
-        // Build the KD-Tree
-        let iter = database.db.iterator(IteratorMode::Start); //iterates from the start
-        println!("Iterating over database...");
-        for item in iter {
-            let (key, value) = item.unwrap();
-            let hex_strings: Vec<String> = key.iter().map(|b| format!("{:02x}", b)).collect();
-            let result = hex_strings.join("");
-            let vec = deserialize(&value);
-            database.tree.add_node((result, vec.vector.vector), 0);
-        }
+        let value =
+            deserialize::<Point>(&value_serialized).map_err(|_| DbError::DeserializationError)?;
 
-        database.tree.print_tree_for_debug();
-
-        return Ok(database);
+        Ok(value.payload)
     }
 
-    pub fn get_current_path(&self) -> String {
-        return self.path.clone();
-    }
-
-    pub fn insert_in_database(&mut self, data: Data) -> Result<String, err> {
-        let value = serialize(data.clone());
-        let mut hasher = Sha256::new();
-        hasher.update(&value);
-        let key = hasher.finalize();
-        let key_string = format!("{:x}", key);
-        match self.db.put(&key, value.as_ref() as &[u8]) {
-            Ok(_) => {
-                self.tree.add_node((key_string.clone(),data.vector.vector), 0);
-                return Ok(key_string);
-            }
-            Err(e) => {
-                return Err(e);
-            }
+    fn get_vector(&self, id: PointId) -> Result<Option<DenseVector>, DbError> {
+        let key = id.to_string();
+        let Some(value_serialized) = self
+            .db
+            .get(key)
+            .map_err(|e| DbError::StorageError(e.into_string()))?
+        else {
+            return Ok(None); // This should not return error but rather give None
         };
+
+        let value =
+            deserialize::<Point>(&value_serialized).map_err(|_| DbError::DeserializationError)?;
+
+        Ok(value.vector)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_db() -> (RocksDbStorage, String) {
+        let dir_path = String::from("/home/hawkeye/works/vector-db/testdb");
+        let db = RocksDbStorage::new(dir_path.clone()).expect("Failed to create RocksDB");
+        (db, dir_path)
     }
 
-    pub fn delete_database(&self) -> Result<(), err> {
-        let options = Options::default();
-        match DB::destroy(&options, &self.path) {
-            Ok(()) => {
-                return Ok(());
-            }
-            Err(e) => {
-                return Err(e);
-            }
-        }
+    #[test]
+    fn test_new_rocksdb_storage() {
+        let (db, path) = create_test_db();
+        assert_eq!(db.get_current_path(), PathBuf::from(path.clone()));
+        std::fs::remove_dir_all(path).unwrap_or_default();
     }
 
-    pub fn delete_from_database_with_value(&mut self, data: Data) -> Result<Option<()>, err> {
-        let value = serialize(data.clone());
-        let mut hasher = Sha256::new();
-        hasher.update(&value);
-        let key = hasher.finalize();
-        let key_string = format!("{:x}", key);
+    #[test]
+    fn test_insert_and_get_vector() {
+        let (db, path) = create_test_db();
+        let id = 1;
+        let vector = Some(vec![0.1, 0.2, 0.3]);
+        let payload = None;
 
-        match self.db.get(&key) {
-            Ok(Some(_)) => {
-                self.tree.delete_node(key_string);
-                match self.db.delete(key) {
-                    Ok(_) => Ok(Some(())),
-                    Err(e) => Err(e),
-                }
-            }
-            Ok(None) => Ok(None),
-            Err(e) => Err(e),
-        }
+        assert!(db.insert_point(id, vector.clone(), payload).is_ok());
+        let result = db.get_vector(id).unwrap();
+        assert_eq!(result, vector);
 
-        // Find the corresponding point and remove it from the database
+        std::fs::remove_dir_all(path).unwrap_or_default();
     }
 
-    pub fn delete_from_database_with_key(
-        &mut self,
-        input: &str,
-    ) -> Result<Result<Option<()>, err>, hexerr> {
-        match decode(input) {
-            Ok(bytes) => {
-                let key = bytes.into_boxed_slice();
-                match self.db.get(&key) {
-                    Ok(Some(_)) => {
-                        self.tree.delete_node(input.to_string());
-                        match self.db.delete(key) {
-                            Ok(_) => Ok(Ok(Some(()))),
-                            Err(e) => Ok(Err(e)),
-                        }
-                    }
-                    Ok(None) => Ok(Ok(None)),
-                    Err(e) => Ok(Err(e)),
-                }
-            }
-            Err(e) => Err(e),
-        }
+    #[test]
+    fn test_insert_and_get_payload() {
+        let (db, path) = create_test_db();
+        let id = 2;
+        let payload = Some(Payload {});
+        let vector = None;
+
+        assert!(db.insert_point(id, vector, payload).is_ok());
+        let result = db.get_payload(id).unwrap();
+        assert_eq!(result, payload);
+
+        std::fs::remove_dir_all(path).unwrap_or_default();
     }
 
-    pub fn get_data_from_key(&self, input: &str) -> Result<Result<Option<Data>, err>, hexerr> {
-        match decode(input) {
-            Ok(bytes) => {
-                let key = bytes.into_boxed_slice();
-                match self.db.get(&key) {
-                    Ok(Some(value)) => {
-                        let vec = deserialize(&value);
-                        return Ok(Ok(Some(vec)));
-                    }
-                    Ok(None) => {
-                        return Ok(Ok(None));
-                    }
-                    Err(e) => {
-                        return Ok(Err(e));
-                    }
-                }
-            }
-            Err(e) => {
-                return Err(e);
-            }
-        }
+    #[test]
+    fn test_contains_point() {
+        let (db, path) = create_test_db();
+        let id = 3;
+
+        assert!(!db.contains_point(id).unwrap());
+
+        let vector = Some(vec![0.4, 0.5, 0.6]);
+        db.insert_point(id, vector, None).unwrap();
+
+        assert!(db.contains_point(id).unwrap());
+
+        std::fs::remove_dir_all(path).unwrap_or_default();
+    }
+
+    #[test]
+    fn test_delete_point() {
+        let (db, path) = create_test_db();
+        let id = 4;
+
+        let vector = vec![0.7, 0.8, 0.9];
+        let payload = Payload {};
+
+        db.insert_point(id, Some(vector), Some(payload)).unwrap();
+
+        assert!(db.contains_point(id).unwrap());
+
+        db.delete_point(id).unwrap();
+
+        assert!(!db.contains_point(id).unwrap());
+        assert_eq!(db.get_vector(id).unwrap(), None);
+        assert_eq!(db.get_payload(id).unwrap(), None);
+
+        std::fs::remove_dir_all(path).unwrap_or_default();
+    }
+
+    #[test]
+    fn test_get_nonexistent_vector() {
+        let (db, path) = create_test_db();
+        let id = 999;
+
+        assert_eq!(db.get_vector(id).unwrap(), None);
+
+        std::fs::remove_dir_all(path).unwrap_or_default();
+    }
+
+    #[test]
+    fn test_get_nonexistent_payload() {
+        let (db, path) = create_test_db();
+        let id = 999;
+
+        assert_eq!(db.get_payload(id).unwrap(), None);
+
+        std::fs::remove_dir_all(path).unwrap_or_default();
     }
 }

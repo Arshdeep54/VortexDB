@@ -19,3 +19,11 @@
 		- [ ] REST
 	- [ ] PCA
 	- [ ] Final Design and implementation
+
+
+
+### Short term tasks
+- [ ] Implement Storage Engine trait for RocksdbStorage and also implement RocksdbStorage
+- [ ] KD Tree refactor according to new architechure
+- [ ] Write a mock API for the project (will be volatile)
+- [ ] Implement in memory - LSM tree, ACID
