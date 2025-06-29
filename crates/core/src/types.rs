@@ -27,6 +27,21 @@ pub struct Point {
     pub payload: Option<Payload>,
 }
 
+/// Struct which will be stored in the vector index
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct IndexedVector {
+    pub id: PointId,
+    pub vector: DenseVector,
+}
+
+#[derive(Copy, Clone)]
+pub enum Similarity {
+    Euclidean,
+    Manhattan,
+    Hamming,
+    Cosine,
+}
+
 // Query Vector. Basically the type of query results that can be generated. Not implementing this but referencing here for furture reference
 // #[derive(Debug, Clone)]
 // pub enum QueryVector {
