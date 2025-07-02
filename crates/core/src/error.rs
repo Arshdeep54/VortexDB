@@ -4,4 +4,5 @@ pub enum DbError {
     StorageError(String),
     SerializationError(String),
     DeserializationError,
+    IndexError(String),
 }
