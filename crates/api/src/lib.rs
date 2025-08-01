@@ -6,7 +6,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use index::flat::FlatIndex;
-use index::kd_tree::KDTree;
 use index::{IndexType, VectorIndex};
 use storage::rocks_db::RocksDbStorage;
 use storage::{StorageEngine, StorageType};
@@ -102,7 +101,7 @@ pub fn init_api(config: DbConfig) -> Result<VectorDb, DbError> {
     // Initialize the vector index
     let index: Arc<RwLock<dyn VectorIndex>> = match config.index_type {
         IndexType::Flat => Arc::new(RwLock::new(FlatIndex::new())),
-        _ => Arc::new(RwLock::new(KDTree::new(config.dimension))),
+        _ => Arc::new(RwLock::new(FlatIndex::new())),
     };
 
     // Init the db
