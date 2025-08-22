@@ -22,13 +22,12 @@ pub struct VectorDb {
 }
 
 impl VectorDb {
-    pub fn new(storage: Arc<dyn StorageEngine>, index: Arc<RwLock<dyn VectorIndex>>) -> Self {
+    fn _new(storage: Arc<dyn StorageEngine>, index: Arc<RwLock<dyn VectorIndex>>) -> Self {
         Self { storage, index }
     }
 
+    //TODO: Make this an atomic operation
     pub fn insert(&self, vector: DenseVector, payload: Payload) -> Result<PointId, DbError> {
-        // TODO: Add to storage and index
-
         // Generate a new point id
         let point_id = generate_point_id();
         self.storage
@@ -44,6 +43,7 @@ impl VectorDb {
         Ok(point_id)
     }
 
+    //TODO: Make this an atomic operation
     pub fn delete(&self, id: PointId) -> Result<(), DbError> {
         // Remove from storage
         self.storage.delete_point(id)?;
@@ -95,7 +95,7 @@ pub fn init_api(config: DbConfig) -> Result<VectorDb, DbError> {
     // Initialize the storage engine
     let storage = match config.storage_type {
         StorageType::RocksDb => Arc::new(RocksDbStorage::new(config.data_path)?),
-        _ => Arc::new(RocksDbStorage::new(config.data_path)?), //TODO: Change this after implementing in memory storage
+        _ => Arc::new(RocksDbStorage::new(config.data_path)?),
     };
 
     // Initialize the vector index
@@ -105,9 +105,8 @@ pub fn init_api(config: DbConfig) -> Result<VectorDb, DbError> {
     };
 
     // Init the db
-    let db = VectorDb::new(storage, index);
+    let db = VectorDb::_new(storage, index);
 
-    // Start server
     Ok(db)
 }
 
