@@ -1,17 +1,29 @@
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout},
-    style::{Color, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    layout::{Constraint, Direction, Layout},
+    style::Color,
+    widgets::ListItem,
     Frame,
 };
 
+use super::components::{common_instructions, create_instructions, OperationsList, PageTitle};
 use crate::app::App;
 
-#[allow(unused_variables)]
-pub fn render_vector_operations(f: &mut Frame, app: &App) {
-    let size = f.size();
+const VECTOR_OPERATIONS: &[&str] = &[
+    "List All Vectors",
+    "Get Vector",
+    "Insert Vector",
+    "Delete Vector",
+    "Search Similar Vectors",
+];
 
+fn get_vector_items() -> Vec<ListItem<'static>> {
+    VECTOR_OPERATIONS
+        .iter()
+        .map(|&op| ListItem::new(op))
+        .collect()
+}
+
+pub fn render_vector_operations(f: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -19,59 +31,25 @@ pub fn render_vector_operations(f: &mut Frame, app: &App) {
             Constraint::Min(0),
             Constraint::Length(3),
         ])
-        .split(size);
+        .split(f.size());
 
-    let title = Paragraph::new("Vector Operations")
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Vector DB")
-                .title_alignment(Alignment::Center)
-                .border_style(Style::default().fg(Color::Magenta)),
-        )
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(Color::Magenta));
+    let title = PageTitle {
+        text: "Vector Operations",
+        color: Color::Magenta,
+    };
 
-    let vector_items = vec![
-        ListItem::new("List All Vectors"),
-        ListItem::new("Get Vector"),
-        ListItem::new("Insert Vector"),
-        ListItem::new("Delete Vector"),
-        ListItem::new("Search Similar Vectors"),
-    ];
+    let operations_list = OperationsList {
+        items: get_vector_items(),
+        title: "Available Operations",
+        color: Color::Magenta,
+        selected: app.vector_selected,
+    };
 
-    let vector_list = List::new(vector_items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Available Operations")
-                .border_style(Style::default().fg(Color::Magenta)),
-        )
-        .style(Style::default().fg(Color::White))
-        .highlight_style(Style::default().fg(Color::Magenta).bg(Color::Gray));
+    f.render_widget(title.render(), chunks[0]);
+    operations_list.render(f, chunks[1]);
+    f.render_widget(create_instructions(common_instructions()), chunks[2]);
+}
 
-    let mut list_state = ListState::default();
-    list_state.select(Some(app.vector_selected));
-
-    let instructions = Paragraph::new(vec![Line::from(vec![
-        Span::styled("↑ Up", Style::default().fg(Color::Gray)),
-        Span::raw(" | "),
-        Span::styled("↓ Down", Style::default().fg(Color::Gray)),
-        Span::raw(" | "),
-        Span::styled("Enter Select", Style::default().fg(Color::Green)),
-        Span::raw(" | "),
-        Span::styled("← Previous", Style::default().fg(Color::Gray)),
-        Span::raw(" | "),
-        Span::styled("q/Esc Quit", Style::default().fg(Color::Red)),
-    ])])
-    .alignment(Alignment::Center)
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::DarkGray)),
-    );
-
-    f.render_widget(title, chunks[0]);
-    f.render_stateful_widget(vector_list, chunks[1], &mut list_state);
-    f.render_widget(instructions, chunks[2]);
+pub fn get_vector_operations_count() -> usize {
+    VECTOR_OPERATIONS.len()
 }

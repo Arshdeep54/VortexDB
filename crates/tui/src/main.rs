@@ -1,6 +1,5 @@
 mod app;
 mod ui;
-
 use app::{App, AppState};
 use color_eyre::Result;
 use crossterm::{
@@ -14,23 +13,35 @@ use ui::{
     dashboard::render_dashboard, db::render_database, vector_operations::render_vector_operations,
 };
 
+const POLL_DURATION: std::time::Duration = std::time::Duration::from_millis(50);
+
 fn main() -> Result<()> {
     color_eyre::install()?;
 
-    // Setup terminal
+    let mut terminal = setup_terminal()?;
+    let mut app = App::new();
+
+    let result = run_app(&mut terminal, &mut app);
+
+    restore_terminal(&mut terminal)?;
+
+    if let Err(err) = result {
+        eprintln!("Application error: {err:?}");
+    }
+
+    Ok(())
+}
+
+fn setup_terminal() -> Result<Terminal<CrosstermBackend<io::Stdout>>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    let terminal = Terminal::new(backend)?;
+    Ok(terminal)
+}
 
-    // Create app
-    let mut app = App::new();
-
-    // Run the app
-    let res = run_app(&mut terminal, &mut app);
-
-    // Restore terminal
+fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
@@ -38,18 +49,10 @@ fn main() -> Result<()> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
-
-    if let Err(err) = res {
-        eprintln!("{err:?}");
-    }
-
     Ok(())
 }
 
-fn run_app<B: ratatui::backend::Backend>(
-    terminal: &mut Terminal<B>,
-    app: &mut App,
-) -> io::Result<()> {
+fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> io::Result<()> {
     loop {
         terminal.draw(|f| match app.state {
             AppState::Dashboard => render_dashboard(f, app),
@@ -57,9 +60,8 @@ fn run_app<B: ratatui::backend::Backend>(
             AppState::VectorOperations => render_vector_operations(f, app),
         })?;
 
-        if event::poll(std::time::Duration::from_millis(50))? {
-            let event = event::read()?;
-            app.handle_event(event)?;
+        if event::poll(POLL_DURATION)? {
+            app.handle_event(event::read()?)?;
         }
 
         if app.should_quit {

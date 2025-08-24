@@ -1,6 +1,8 @@
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use std::io;
 
+use crate::ui::{db, vector_operations};
+
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum AppState {
     #[default]
@@ -31,24 +33,18 @@ impl App {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> io::Result<()> {
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc => {
-                self.should_quit = true;
-            }
-            KeyCode::Right | KeyCode::Enter => {
-                self.next_page();
-            }
-            KeyCode::Left => {
-                self.previous_page();
-            }
-            KeyCode::Up => {
-                self.select_previous();
-            }
-            KeyCode::Down => {
-                self.select_next();
-            }
+            KeyCode::Char('q') | KeyCode::Esc => self.quit(),
+            KeyCode::Right | KeyCode::Enter => self.next_page(),
+            KeyCode::Left => self.previous_page(),
+            KeyCode::Up => self.select_previous(),
+            KeyCode::Down => self.select_next(),
             _ => {}
         }
         Ok(())
+    }
+
+    fn quit(&mut self) {
+        self.should_quit = true;
     }
 
     fn next_page(&mut self) {
@@ -71,14 +67,10 @@ impl App {
         match self.state {
             AppState::Dashboard => {}
             AppState::Database => {
-                if self.db_selected > 0 {
-                    self.db_selected -= 1;
-                }
+                self.db_selected = self.db_selected.saturating_sub(1);
             }
             AppState::VectorOperations => {
-                if self.vector_selected > 0 {
-                    self.vector_selected -= 1;
-                }
+                self.vector_selected = self.vector_selected.saturating_sub(1);
             }
         }
     }
@@ -87,17 +79,21 @@ impl App {
         match self.state {
             AppState::Dashboard => {}
             AppState::Database => {
-                let max_items = 3; // Number of database operations
-                if self.db_selected < max_items - 1 {
-                    self.db_selected += 1;
-                }
+                let max_items = db::get_db_operations_count();
+                self.db_selected = (self.db_selected + 1).min(max_items - 1);
             }
             AppState::VectorOperations => {
-                let max_items = 5; // Number of vector operations
-                if self.vector_selected < max_items - 1 {
-                    self.vector_selected += 1;
-                }
+                let max_items = vector_operations::get_vector_operations_count();
+                self.vector_selected = (self.vector_selected + 1).min(max_items - 1);
             }
+        }
+    }
+
+    pub fn get_selected_operation(&self) -> Option<usize> {
+        match self.state {
+            AppState::Dashboard => None,
+            AppState::Database => Some(self.db_selected),
+            AppState::VectorOperations => Some(self.vector_selected),
         }
     }
 }
