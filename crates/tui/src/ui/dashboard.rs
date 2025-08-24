@@ -14,11 +14,7 @@ pub fn render_dashboard(f: &mut Frame, app: &App) {
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(20),
-            Constraint::Percentage(50),
-            Constraint::Percentage(30),
-        ])
+        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
         .split(size);
 
     let title_lines = vec![
@@ -131,6 +127,6 @@ pub fn render_dashboard(f: &mut Frame, app: &App) {
             .border_style(Style::default().fg(Color::DarkGray)),
     );
 
-    f.render_widget(title, chunks[1]);
-    f.render_widget(instructions, chunks[2]);
+    f.render_widget(title, chunks[0]);
+    f.render_widget(instructions, chunks[1]);
 }

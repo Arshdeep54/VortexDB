@@ -13,6 +13,8 @@ pub enum AppState {
 pub struct App {
     pub should_quit: bool,
     pub state: AppState,
+    pub db_selected: usize,
+    pub vector_selected: usize,
 }
 
 impl App {
@@ -38,6 +40,12 @@ impl App {
             KeyCode::Left => {
                 self.previous_page();
             }
+            KeyCode::Up => {
+                self.select_previous();
+            }
+            KeyCode::Down => {
+                self.select_next();
+            }
             _ => {}
         }
         Ok(())
@@ -57,5 +65,39 @@ impl App {
             AppState::Database => AppState::Dashboard,
             AppState::VectorOperations => AppState::Database,
         };
+    }
+
+    fn select_previous(&mut self) {
+        match self.state {
+            AppState::Dashboard => {}
+            AppState::Database => {
+                if self.db_selected > 0 {
+                    self.db_selected -= 1;
+                }
+            }
+            AppState::VectorOperations => {
+                if self.vector_selected > 0 {
+                    self.vector_selected -= 1;
+                }
+            }
+        }
+    }
+
+    fn select_next(&mut self) {
+        match self.state {
+            AppState::Dashboard => {}
+            AppState::Database => {
+                let max_items = 3; // Number of database operations
+                if self.db_selected < max_items - 1 {
+                    self.db_selected += 1;
+                }
+            }
+            AppState::VectorOperations => {
+                let max_items = 5; // Number of vector operations
+                if self.vector_selected < max_items - 1 {
+                    self.vector_selected += 1;
+                }
+            }
+        }
     }
 }
