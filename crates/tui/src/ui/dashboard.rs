@@ -116,12 +116,6 @@ pub fn render_dashboard(f: &mut Frame, app: &App) {
             Span::styled("→ Enter/Right", Style::default().fg(Color::Green)),
             Span::raw(" to navigate to Database Management"),
         ]),
-        Line::from(vec![
-            Span::styled("← Left", Style::default().fg(Color::Gray)),
-            Span::raw(" | "),
-            Span::styled("→ Right", Style::default().fg(Color::Gray)),
-            Span::raw(" to navigate between pages"),
-        ]),
         Line::from(vec![Span::styled(
             "Press 'q' or 'Esc' to quit",
             Style::default()

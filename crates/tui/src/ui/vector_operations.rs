@@ -53,8 +53,6 @@ pub fn render_vector_operations(f: &mut Frame, app: &App) {
     let instructions = Paragraph::new(vec![Line::from(vec![
         Span::styled("← Previous", Style::default().fg(Color::Gray)),
         Span::raw(" | "),
-        Span::styled("→ Next", Style::default().fg(Color::Gray)),
-        Span::raw(" | "),
         Span::styled("q/Esc Quit", Style::default().fg(Color::Red)),
     ])])
     .alignment(Alignment::Center)

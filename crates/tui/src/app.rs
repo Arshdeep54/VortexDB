@@ -47,13 +47,13 @@ impl App {
         self.state = match self.state {
             AppState::Dashboard => AppState::Database,
             AppState::Database => AppState::VectorOperations,
-            AppState::VectorOperations => AppState::Dashboard,
+            AppState::VectorOperations => AppState::VectorOperations,
         };
     }
 
     fn previous_page(&mut self) {
         self.state = match self.state {
-            AppState::Dashboard => AppState::VectorOperations,
+            AppState::Dashboard => AppState::Dashboard,
             AppState::Database => AppState::Dashboard,
             AppState::VectorOperations => AppState::Database,
         };
