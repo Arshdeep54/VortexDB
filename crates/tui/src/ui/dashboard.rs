@@ -12,7 +12,6 @@ use crate::app::App;
 pub fn render_dashboard(f: &mut Frame, app: &App) {
     let size = f.size();
 
-    // Create main layout
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -22,7 +21,6 @@ pub fn render_dashboard(f: &mut Frame, app: &App) {
         ])
         .split(size);
 
-    // Create beautiful ASCII-style title
     let title_lines = vec![
         Line::from(""),
         Line::from(""),
@@ -113,23 +111,29 @@ pub fn render_dashboard(f: &mut Frame, app: &App) {
         )
         .alignment(Alignment::Center);
 
-    // Enhanced instructions with better styling
     let instructions = Paragraph::new(vec![
+        Line::from(vec![
+            Span::styled("→ Enter/Right", Style::default().fg(Color::Green)),
+            Span::raw(" to navigate to Database Management"),
+        ]),
+        Line::from(vec![
+            Span::styled("← Left", Style::default().fg(Color::Gray)),
+            Span::raw(" | "),
+            Span::styled("→ Right", Style::default().fg(Color::Gray)),
+            Span::raw(" to navigate between pages"),
+        ]),
         Line::from(vec![Span::styled(
             "Press 'q' or 'Esc' to quit",
             Style::default()
-                .fg(Color::Gray)
+                .fg(Color::Red)
                 .add_modifier(ratatui::style::Modifier::ITALIC),
-        )]),
-        Line::from(vec![Span::styled(
-            "Navigate with arrow keys",
-            Style::default().fg(Color::DarkGray),
         )]),
     ])
     .alignment(Alignment::Center)
     .block(
         Block::default()
-            .borders(Borders::TOP)
+            .borders(Borders::ALL)
+            .title("Navigation")
             .border_style(Style::default().fg(Color::DarkGray)),
     );
 

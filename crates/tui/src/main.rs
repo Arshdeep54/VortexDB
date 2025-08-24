@@ -1,7 +1,7 @@
 mod app;
 mod ui;
 
-use app::App;
+use app::{App, AppState};
 use color_eyre::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture},
@@ -10,7 +10,9 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
-use ui::dashboard::render_dashboard;
+use ui::{
+    dashboard::render_dashboard, db::render_database, vector_operations::render_vector_operations,
+};
 
 fn main() -> Result<()> {
     color_eyre::install()?;
@@ -49,7 +51,11 @@ fn run_app<B: ratatui::backend::Backend>(
     app: &mut App,
 ) -> io::Result<()> {
     loop {
-        terminal.draw(|f| render_dashboard(f, app))?;
+        terminal.draw(|f| match app.state {
+            AppState::Dashboard => render_dashboard(f, app),
+            AppState::Database => render_database(f, app),
+            AppState::VectorOperations => render_vector_operations(f, app),
+        })?;
 
         if event::poll(std::time::Duration::from_millis(50))? {
             let event = event::read()?;
