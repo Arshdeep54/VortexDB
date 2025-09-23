@@ -8,11 +8,7 @@ use ratatui::{
 use super::components::{common_instructions, create_instructions, OperationsList, PageTitle};
 use crate::app::App;
 
-const DB_OPERATIONS: &[&str] = &[
-    "Create New Database",
-    "Open Existing Database",
-    "Delete Database",
-];
+const DB_OPERATIONS: &[&str] = &["Create New Database", "Select Database", "Delete Database"];
 
 fn get_db_items() -> Vec<ListItem<'static>> {
     DB_OPERATIONS.iter().map(|&op| ListItem::new(op)).collect()

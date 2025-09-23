@@ -1,7 +1,8 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout},
-    style::Color,
-    widgets::ListItem,
+    style::{Color, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, ListItem, Paragraph},
     Frame,
 };
 
@@ -28,6 +29,7 @@ pub fn render_vector_operations(f: &mut Frame, app: &App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),
+            Constraint::Length(3), // Add space for database info
             Constraint::Min(0),
             Constraint::Length(3),
         ])
@@ -38,16 +40,44 @@ pub fn render_vector_operations(f: &mut Frame, app: &App) {
         color: Color::Magenta,
     };
 
+    // Database info section
+    let db_info = if let Some(db_name) = app.database.get_selected_database_name() {
+        Paragraph::new(vec![Line::from(vec![
+            Span::styled("Selected Database: ", Style::default().fg(Color::Gray)),
+            Span::styled(db_name, Style::default().fg(Color::Green)),
+        ])])
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Database Info")
+                .border_style(Style::default().fg(Color::Gray)),
+        )
+    } else {
+        Paragraph::new("No database selected. Please select a database first.")
+            .style(Style::default().fg(Color::Red))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Database Info")
+                    .border_style(Style::default().fg(Color::Red)),
+            )
+    };
+
     let operations_list = OperationsList {
         items: get_vector_items(),
         title: "Available Operations",
-        color: Color::Magenta,
+        color: if app.database.is_database_selected() {
+            Color::Magenta
+        } else {
+            Color::DarkGray
+        },
         selected: app.vector_selected,
     };
 
     f.render_widget(title.render(), chunks[0]);
-    operations_list.render(f, chunks[1]);
-    f.render_widget(create_instructions(common_instructions()), chunks[2]);
+    f.render_widget(db_info, chunks[1]);
+    operations_list.render(f, chunks[2]);
+    f.render_widget(create_instructions(common_instructions()), chunks[3]);
 }
 
 pub fn get_vector_operations_count() -> usize {

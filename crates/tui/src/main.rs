@@ -1,6 +1,7 @@
 mod app;
 mod ui;
-use app::{App, AppState};
+
+use app::App;
 use color_eyre::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture},
@@ -10,7 +11,8 @@ use crossterm::{
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 use ui::{
-    dashboard::render_dashboard, db::render_database, vector_operations::render_vector_operations,
+    dashboard::render_dashboard, db::render_database, modal::render_modal,
+    vector_operations::render_vector_operations,
 };
 
 const POLL_DURATION: std::time::Duration = std::time::Duration::from_millis(50);
@@ -54,10 +56,16 @@ fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Re
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> io::Result<()> {
     loop {
-        terminal.draw(|f| match app.state {
-            AppState::Dashboard => render_dashboard(f, app),
-            AppState::Database => render_database(f, app),
-            AppState::VectorOperations => render_vector_operations(f, app),
+        terminal.draw(|f| {
+            match app.state {
+                app::AppState::Dashboard => render_dashboard(f, app),
+                app::AppState::Database => render_database(f, app),
+                app::AppState::VectorOperations => render_vector_operations(f, app),
+            }
+
+            if app.show_modal() {
+                render_modal(f, app);
+            }
         })?;
 
         if event::poll(POLL_DURATION)? {
