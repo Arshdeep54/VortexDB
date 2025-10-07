@@ -19,6 +19,7 @@ pub fn render_modal(f: &mut Frame, app: &App) {
         Some(ModalType::CreateDatabase) => render_create_database_modal(f, app, popup_area),
         Some(ModalType::DatabaseList) => render_database_list_modal(f, app, popup_area),
         Some(ModalType::DeleteDatabase) => render_delete_database_modal(f, app, popup_area),
+        Some(ModalType::Error) => render_error_modal(f, app, popup_area),
         _ => {}
     }
 }
@@ -89,6 +90,31 @@ fn render_delete_database_modal(f: &mut Frame, app: &App, area: Rect) {
         .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black));
 
     f.render_widget(list, area);
+}
+
+fn render_error_modal(f: &mut Frame, app: &App, area: Rect) {
+    let message = app.error_message().unwrap_or("An unknown error occurred!");
+
+    let content = Paragraph::new(vec![
+        Line::from(message.to_string()),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Press Enter or Esc to dismiss",
+            Style::default().fg(Color::Gray),
+        )),
+    ])
+    .block(
+        Block::default()
+            .title(Span::styled(
+                "Error",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Red)),
+    )
+    .wrap(ratatui::widgets::Wrap { trim: true });
+
+    f.render_widget(content, area);
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

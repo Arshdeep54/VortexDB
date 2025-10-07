@@ -11,4 +11,5 @@ pub enum ModalType {
     CreateDatabase,
     DeleteDatabase,
     DatabaseList,
+    Error,
 }

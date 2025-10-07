@@ -118,4 +118,8 @@ impl App {
     pub fn available_databases(&self) -> &[(String, PathBuf)] {
         &self.database.available_databases
     }
+
+    pub fn error_message(&self) -> Option<&str> {
+        self.modal.error_message()
+    }
 }

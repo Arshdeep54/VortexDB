@@ -32,10 +32,10 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> io::Result<()> {
 
 fn handle_modal_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
     match key.code {
-        KeyCode::Enter => {
-            execute_modal_action(app)?;
-            app.modal.close();
-        }
+        KeyCode::Enter => match execute_modal_action(app) {
+            Ok(()) => app.modal.close(),
+            Err(err) => app.modal.show_error(err.to_string()),
+        },
         KeyCode::Esc => {
             app.modal.close();
         }
@@ -52,16 +52,15 @@ fn handle_modal_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
 
 fn handle_modal_navigation(app: &mut App, key: KeyEvent) -> io::Result<()> {
     match key.code {
-        KeyCode::Enter => {
-            if matches!(
-                app.modal.modal_type(),
-                Some(ModalType::DatabaseList) | Some(ModalType::DeleteDatabase)
-            ) {
-                execute_selected_db_operation(app)?;
-            } else {
-                app.modal.enable_input_mode();
+        KeyCode::Enter => match app.modal.modal_type() {
+            Some(ModalType::DatabaseList) | Some(ModalType::DeleteDatabase) => {
+                if let Err(err) = execute_selected_db_operation(app) {
+                    app.modal.show_error(err.to_string());
+                }
             }
-        }
+            Some(ModalType::Error) => app.modal.close(),
+            _ => app.modal.enable_input_mode(),
+        },
         KeyCode::Esc => {
             app.modal.close();
         }
@@ -88,7 +87,11 @@ fn handle_modal_navigation(app: &mut App, key: KeyEvent) -> io::Result<()> {
 
 fn handle_database_keys(app: &mut App, key: KeyEvent) -> io::Result<()> {
     match key.code {
-        KeyCode::Enter => open_database_modal(app)?,
+        KeyCode::Enter => {
+            if let Err(err) = open_database_modal(app) {
+                app.modal.show_error(err.to_string());
+            }
+        }
         KeyCode::Up => app.select_previous(),
         KeyCode::Down => app.select_next(),
         KeyCode::Left => app.previous_page(),
@@ -132,7 +135,7 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             let input = app.modal.get_input_value();
             if !input.is_empty() {
                 let name = input;
-                let path = PathBuf::from(format!("./databases/{}", name));
+                let path = PathBuf::from(format!("./databases/{name}"));
                 app.database.create_new_database(name, path)?;
             }
         }

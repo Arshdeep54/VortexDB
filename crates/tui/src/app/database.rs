@@ -21,6 +21,14 @@ impl DatabaseManager {
     }
 
     pub fn create_new_database(&mut self, name: String, path: PathBuf) -> io::Result<()> {
+        // Check if database already exists to avoid name collisions
+        if path.exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("Database '{name}' already exists!"),
+            ));
+        }
+
         match create_storage_engine(StorageType::RocksDb, &path) {
             Ok(storage) => {
                 self.storage_engine = Some(storage);

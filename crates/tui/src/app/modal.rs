@@ -6,6 +6,7 @@ pub struct ModalManager {
     input_buffer: String,
     input_mode: bool,
     selected_index: usize,
+    error_message: Option<String>,
 }
 
 impl ModalManager {
@@ -16,6 +17,7 @@ impl ModalManager {
             input_buffer: String::new(),
             input_mode: false,
             selected_index: 0,
+            error_message: None,
         }
     }
 
@@ -45,6 +47,7 @@ impl ModalManager {
         self.input_buffer.clear();
         self.input_mode = true;
         self.selected_index = 0;
+        self.error_message = None;
     }
 
     pub fn show_database_list(&mut self) {
@@ -52,6 +55,7 @@ impl ModalManager {
         self.modal_type = Some(ModalType::DatabaseList);
         self.input_mode = false;
         self.selected_index = 0;
+        self.error_message = None;
     }
 
     pub fn show_delete_database(&mut self) {
@@ -59,6 +63,16 @@ impl ModalManager {
         self.modal_type = Some(ModalType::DeleteDatabase);
         self.input_mode = false;
         self.selected_index = 0;
+        self.error_message = None;
+    }
+
+    pub fn show_error<S: Into<String>>(&mut self, message: S) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::Error);
+        self.input_mode = false;
+        self.input_buffer.clear();
+        self.selected_index = 0;
+        self.error_message = Some(message.into());
     }
 
     pub fn close(&mut self) {
@@ -67,6 +81,7 @@ impl ModalManager {
         self.input_buffer.clear();
         self.input_mode = false;
         self.selected_index = 0;
+        self.error_message = None;
     }
 
     pub fn enable_input_mode(&mut self) {
@@ -93,5 +108,9 @@ impl ModalManager {
 
     pub fn get_input_value(&self) -> String {
         self.input_buffer.clone()
+    }
+
+    pub fn error_message(&self) -> Option<&str> {
+        self.error_message.as_deref()
     }
 }
