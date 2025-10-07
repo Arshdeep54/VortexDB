@@ -4,6 +4,9 @@ pub struct ModalManager {
     show_modal: bool,
     modal_type: Option<ModalType>,
     input_buffer: String,
+    secondary_input: String,
+    tertiary_input: String,
+    active_field: usize,
     input_mode: bool,
     selected_index: usize,
     error_message: Option<String>,
@@ -15,6 +18,9 @@ impl ModalManager {
             show_modal: false,
             modal_type: None,
             input_buffer: String::new(),
+            secondary_input: String::new(),
+            tertiary_input: String::new(),
+            active_field: 0,
             input_mode: false,
             selected_index: 0,
             error_message: None,
@@ -33,6 +39,18 @@ impl ModalManager {
         &self.input_buffer
     }
 
+    pub fn secondary_input(&self) -> &str {
+        &self.secondary_input
+    }
+
+    pub fn tertiary_input(&self) -> &str {
+        &self.tertiary_input
+    }
+
+    pub fn active_field(&self) -> usize {
+        self.active_field
+    }
+
     pub fn input_mode(&self) -> bool {
         self.input_mode
     }
@@ -48,6 +66,60 @@ impl ModalManager {
         self.input_mode = true;
         self.selected_index = 0;
         self.error_message = None;
+    }
+
+    pub fn show_get_vector(&mut self) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::GetVector);
+        self.input_buffer.clear();
+        self.secondary_input.clear();
+        self.tertiary_input.clear();
+        self.active_field = 0;
+        self.input_mode = true;
+        self.selected_index = 0;
+        self.error_message = None;
+    }
+
+    pub fn show_insert_vector(&mut self) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::InsertVector);
+        self.input_buffer.clear();
+        self.secondary_input.clear();
+        self.tertiary_input.clear();
+        self.input_mode = true;
+        self.selected_index = 0;
+        self.error_message = None;
+    }
+
+    pub fn show_delete_vector(&mut self) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::DeleteVector);
+        self.input_buffer.clear();
+        self.secondary_input.clear();
+        self.tertiary_input.clear();
+        self.active_field = 0;
+        self.input_mode = true;
+        self.selected_index = 0;
+        self.error_message = None;
+    }
+    pub fn show_success<S: Into<String>>(&mut self, message: S) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::Success);
+        self.input_mode = false;
+        self.input_buffer.clear();
+        self.secondary_input.clear();
+        self.tertiary_input.clear();
+        self.error_message = Some(message.into());
+    }
+
+    pub fn show_failure<S: Into<String>>(&mut self, message: S) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::Failure);
+        self.input_mode = false;
+        self.input_buffer.clear();
+        self.secondary_input.clear();
+        self.tertiary_input.clear();
+        self.error_message = Some(message.into());
     }
 
     pub fn show_database_list(&mut self) {
@@ -71,6 +143,9 @@ impl ModalManager {
         self.modal_type = Some(ModalType::Error);
         self.input_mode = false;
         self.input_buffer.clear();
+        self.secondary_input.clear();
+        self.tertiary_input.clear();
+        self.active_field = 0;
         self.selected_index = 0;
         self.error_message = Some(message.into());
     }
@@ -79,6 +154,9 @@ impl ModalManager {
         self.show_modal = false;
         self.modal_type = None;
         self.input_buffer.clear();
+        self.secondary_input.clear();
+        self.tertiary_input.clear();
+        self.active_field = 0;
         self.input_mode = false;
         self.selected_index = 0;
         self.error_message = None;
@@ -89,11 +167,29 @@ impl ModalManager {
     }
 
     pub fn add_char(&mut self, c: char) {
-        self.input_buffer.push(c);
+        match self.active_field {
+            0 => self.input_buffer.push(c),
+            1 => self.secondary_input.push(c),
+            _ => self.tertiary_input.push(c),
+        }
     }
 
     pub fn remove_char(&mut self) {
-        self.input_buffer.pop();
+        match self.active_field {
+            0 => {
+                self.input_buffer.pop();
+            }
+            1 => {
+                self.secondary_input.pop();
+            }
+            _ => {
+                self.tertiary_input.pop();
+            }
+        }
+    }
+
+    pub fn switch_field(&mut self) {
+        self.active_field = (self.active_field + 1) % 3;
     }
 
     pub fn select_previous(&mut self) {

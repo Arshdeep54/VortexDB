@@ -12,4 +12,9 @@ pub enum ModalType {
     DeleteDatabase,
     DatabaseList,
     Error,
+    Success,
+    Failure,
+    GetVector,
+    InsertVector,
+    DeleteVector,
 }

@@ -51,9 +51,19 @@ impl DatabaseManager {
                 "Database path does not exist",
             ));
         }
-
-        self.selected_database = Some((name, path));
-        Ok(())
+        // Open the selected database
+        match create_storage_engine(StorageType::RocksDb, &path) {
+            Ok(storage) => {
+                self.storage_engine = Some(storage);
+                self.current_db_path = Some(path.clone());
+                self.selected_database = Some((name, path));
+                Ok(())
+            }
+            Err(e) => Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to open database: {:?}", e),
+            )),
+        }
     }
 
     pub fn delete_database(&mut self, path: &PathBuf) -> io::Result<()> {

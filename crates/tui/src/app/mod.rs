@@ -115,6 +115,22 @@ impl App {
         self.modal.input_mode()
     }
 
+    pub fn secondary_input(&self) -> &str {
+        self.modal.secondary_input()
+    }
+
+    pub fn tertiary_input(&self) -> &str {
+        self.modal.tertiary_input()
+    }
+
+    pub fn active_field(&self) -> usize {
+        self.modal.active_field()
+    }
+
+    pub fn switch_field(&mut self) {
+        self.modal.switch_field();
+    }
+
     pub fn available_databases(&self) -> &[(String, PathBuf)] {
         &self.database.available_databases
     }
