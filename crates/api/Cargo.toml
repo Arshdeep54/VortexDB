@@ -8,3 +8,4 @@ license = "MIT"
 core = { path = "../core" }
 index = { path = "../index" }
 storage = { path = "../storage" }
+tempfile = "3.20.0"
