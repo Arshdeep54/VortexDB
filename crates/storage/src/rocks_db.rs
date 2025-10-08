@@ -121,6 +121,41 @@ impl StorageEngine for RocksDbStorage {
 
         Ok(value.vector)
     }
+
+    fn list_vectors(
+        &self,
+        offset: PointId,
+        limit: usize,
+    ) -> Result<Option<(Vec<(PointId, DenseVector)>, PointId)>, DbError> {
+        if limit < 1 {
+            return Ok(None);
+        }
+
+        let mut result = Vec::with_capacity(limit);
+        let iter = self.db.iterator(rocksdb::IteratorMode::From(
+            offset.to_string().as_bytes(),
+            rocksdb::Direction::Forward,
+        ));
+        let mut last_id = offset;
+
+        for item in iter {
+            let (_, v) = item.map_err(|e| DbError::StorageError(e.into_string()))?;
+            let point: Point = deserialize(&v).map_err(|_| DbError::DeserializationError)?;
+
+            if point.id < offset {
+                continue;
+            }
+
+            if let Some(vec) = point.vector {
+                last_id = point.id;
+                result.push((point.id, vec));
+                if result.len() == limit {
+                    break;
+                }
+            }
+        }
+        Ok(Some((result, last_id + 1)))
+    }
 }
 
 #[cfg(test)]
