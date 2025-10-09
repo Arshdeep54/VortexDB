@@ -1,4 +1,5 @@
 use super::state::ModalType;
+use ratatui::style::Color;
 
 pub struct ModalManager {
     show_modal: bool,
@@ -102,6 +103,21 @@ impl ModalManager {
         self.selected_index = 0;
         self.error_message = None;
     }
+
+    pub fn show_vector_list(&mut self) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::ListVectors);
+        self.input_mode = false;
+        self.error_message = None;
+        self.selected_index = 0;
+    }
+    pub fn show_vector_details(&mut self) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::VectorDetails);
+        self.input_mode = false;
+        self.selected_index = 0;
+        self.error_message = None;
+    }
     pub fn show_success<S: Into<String>>(&mut self, message: S) {
         self.show_modal = true;
         self.modal_type = Some(ModalType::Success);
@@ -136,6 +152,14 @@ impl ModalManager {
         self.input_mode = false;
         self.selected_index = 0;
         self.error_message = None;
+    }
+
+    pub fn show_confirm_delete_database(&mut self, name: String) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::ConfirmDeleteDatabase);
+        self.input_mode = false;
+        self.selected_index = 0;
+        self.error_message = Some(format!("Delete database '{name}'?"));
     }
 
     pub fn show_error<S: Into<String>>(&mut self, message: S) {
@@ -202,11 +226,72 @@ impl ModalManager {
         }
     }
 
+    pub fn set_selected_index(&mut self, index: usize, max_items: usize) {
+        if max_items == 0 {
+            self.selected_index = 0;
+        } else {
+            self.selected_index = index.min(max_items - 1);
+        }
+    }
+
     pub fn get_input_value(&self) -> String {
         self.input_buffer.clone()
     }
 
     pub fn error_message(&self) -> Option<&str> {
         self.error_message.as_deref()
+    }
+
+    pub fn footer_items(&self) -> Vec<(String, Color)> {
+        use ModalType::*;
+
+        match self.modal_type {
+            Some(CreateDatabase) => vec![
+                ("Enter Create".into(), Color::Green),
+                ("Esc Cancel".into(), Color::Red),
+            ],
+            Some(DatabaseList) => vec![
+                ("↑ Navigate".into(), Color::Gray),
+                ("↓ Navigate".into(), Color::Gray),
+                ("Enter Select".into(), Color::Green),
+                ("Esc Cancel".into(), Color::Red),
+            ],
+            Some(DeleteDatabase) => vec![
+                ("↑ Navigate".into(), Color::Gray),
+                ("↓ Navigate".into(), Color::Gray),
+                ("Enter Continue".into(), Color::Green),
+                ("Esc Cancel".into(), Color::Red),
+            ],
+            Some(ConfirmDeleteDatabase) => vec![
+                ("←/→ Toggle".into(), Color::Gray),
+                ("Enter Confirm".into(), Color::Green),
+                ("Esc Back".into(), Color::Red),
+            ],
+            Some(GetVector) => vec![
+                ("Enter Fetch".into(), Color::Green),
+                ("Esc Close".into(), Color::Red),
+            ],
+            Some(InsertVector) => vec![
+                ("Tab Next".into(), Color::Gray),
+                ("Enter Insert".into(), Color::Green),
+                ("Esc Cancel".into(), Color::Red),
+            ],
+            Some(DeleteVector) => vec![
+                ("Enter Delete".into(), Color::Green),
+                ("Esc Cancel".into(), Color::Red),
+            ],
+            Some(ListVectors) => vec![
+                ("↑ Scroll".into(), Color::Gray),
+                ("↓ Scroll".into(), Color::Gray),
+                ("Enter Details".into(), Color::Green),
+                ("Esc Close".into(), Color::Red),
+            ],
+            Some(VectorDetails) => vec![
+                ("Enter Close".into(), Color::Green),
+                ("Esc Back".into(), Color::Red),
+            ],
+            Some(Success) | Some(Failure) | Some(Error) => vec![("Esc Dismiss".into(), Color::Red)],
+            _ => vec![("Esc Cancel".into(), Color::Red)],
+        }
     }
 }

@@ -17,6 +17,14 @@ pub struct App {
     pub vector_selected: usize,
     pub database: database::DatabaseManager,
     pub modal: modal::ModalManager,
+
+    pub vector_list_items: Vec<VectorListItem>,
+    pub vector_list_next_offset: Option<u64>,
+    pub vector_list_post_restore: bool,
+    pub vector_list_selected_index: usize,
+    pub vector_detail: Option<VectorListItem>,
+    pub pending_delete_database: Option<(String, PathBuf)>,
+    pub pending_delete_database_index: Option<usize>,
 }
 
 impl Default for App {
@@ -34,6 +42,14 @@ impl App {
             vector_selected: 0,
             database: database::DatabaseManager::new(),
             modal: modal::ModalManager::new(),
+
+            vector_list_items: Vec::new(),
+            vector_list_next_offset: None,
+            vector_list_post_restore: false,
+            vector_list_selected_index: 0,
+            vector_detail: None,
+            pending_delete_database: None,
+            pending_delete_database_index: None,
         }
     }
 
@@ -137,5 +153,9 @@ impl App {
 
     pub fn error_message(&self) -> Option<&str> {
         self.modal.error_message()
+    }
+
+    pub fn modal_footer_items(&self) -> Vec<(String, ratatui::style::Color)> {
+        self.modal.footer_items()
     }
 }

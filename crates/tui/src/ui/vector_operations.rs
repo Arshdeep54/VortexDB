@@ -77,7 +77,14 @@ pub fn render_vector_operations(f: &mut Frame, app: &App) {
     f.render_widget(title.render(), chunks[0]);
     f.render_widget(db_info, chunks[1]);
     operations_list.render(f, chunks[2]);
-    f.render_widget(create_instructions(common_instructions()), chunks[3]);
+
+    let instructions = if app.show_modal() {
+        app.modal_footer_items()
+    } else {
+        common_instructions()
+    };
+
+    f.render_widget(create_instructions(instructions), chunks[3]);
 }
 
 pub fn get_vector_operations_count() -> usize {

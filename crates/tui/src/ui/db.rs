@@ -36,8 +36,13 @@ pub fn render_database(f: &mut Frame, app: &App) {
         selected: app.db_selected,
     };
 
-    let mut instructions = common_instructions();
-    instructions.insert(4, ("→ Next".to_string(), Color::Gray));
+    let instructions = if app.show_modal() {
+        app.modal_footer_items()
+    } else {
+        let mut base = common_instructions();
+        base.insert(4, ("→ Next".to_string(), Color::Gray));
+        base
+    };
 
     f.render_widget(title.render(), chunks[0]);
     operations_list.render(f, chunks[1]);
