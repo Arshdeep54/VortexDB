@@ -30,6 +30,9 @@ pub fn render_modal(f: &mut Frame, app: &App) {
         Some(ModalType::Error) => render_error_modal(f, app, popup_area),
         Some(ModalType::GetVector) => render_get_vector_modal(f, app, popup_area),
         Some(ModalType::InsertVector) => render_insert_vector_modal(f, app, popup_area),
+        Some(ModalType::SearchSimilarVectors) => {
+            render_search_similar_vectors_modal(f, app, popup_area)
+        }
         Some(ModalType::DeleteVector) => render_delete_vector_modal(f, app, popup_area),
         Some(ModalType::ListVectors) => render_vector_list_modal(f, app, popup_area),
         Some(ModalType::VectorDetails) => render_vector_details_modal(f, app, popup_area),
@@ -104,6 +107,33 @@ fn render_insert_vector_modal(f: &mut Frame, app: &App, area: Rect) {
             f.set_cursor(area.x + 1 + app.secondary_input().len() as u16, area.y + 5);
         } else {
             f.set_cursor(area.x + 1 + app.tertiary_input().len() as u16, area.y + 8);
+        }
+    }
+}
+
+fn render_search_similar_vectors_modal(f: &mut Frame, app: &App, area: Rect) {
+    let block = Block::default()
+        .title("Search Similar Vectors")
+        .borders(Borders::ALL);
+
+    let lines = vec![
+        Line::from(Span::raw("Top-k (int):")),
+        Line::from(Span::raw(app.input_buffer().to_string())),
+        Line::from(Span::raw("")),
+        Line::from(Span::raw("Query Vector (e.g. [0.1,0.2,...]):")),
+        Line::from(Span::raw(app.secondary_input().to_string())),
+    ];
+
+    let input = Paragraph::new(lines)
+        .block(block)
+        .wrap(ratatui::widgets::Wrap { trim: true });
+    f.render_widget(input, area);
+
+    if app.input_mode() {
+        if app.active_field() == 0 {
+            f.set_cursor(area.x + 1 + app.input_buffer().len() as u16, area.y + 2);
+        } else {
+            f.set_cursor(area.x + 1 + app.secondary_input().len() as u16, area.y + 5);
         }
     }
 }

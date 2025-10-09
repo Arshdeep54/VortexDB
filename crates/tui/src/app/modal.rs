@@ -87,6 +87,19 @@ impl ModalManager {
         self.input_buffer.clear();
         self.secondary_input.clear();
         self.tertiary_input.clear();
+        self.active_field = 0;
+        self.input_mode = true;
+        self.selected_index = 0;
+        self.error_message = None;
+    }
+
+    pub fn show_search_similar_vectors(&mut self) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::SearchSimilarVectors);
+        self.input_buffer.clear();
+        self.secondary_input.clear();
+        self.tertiary_input.clear();
+        self.active_field = 0;
         self.input_mode = true;
         self.selected_index = 0;
         self.error_message = None;
@@ -274,6 +287,11 @@ impl ModalManager {
             Some(InsertVector) => vec![
                 ("Tab Next".into(), Color::Gray),
                 ("Enter Insert".into(), Color::Green),
+                ("Esc Cancel".into(), Color::Red),
+            ],
+            Some(SearchSimilarVectors) => vec![
+                ("Tab Next".into(), Color::Gray),
+                ("Enter Search".into(), Color::Green),
                 ("Esc Cancel".into(), Color::Red),
             ],
             Some(DeleteVector) => vec![

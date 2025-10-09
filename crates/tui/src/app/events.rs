@@ -1,8 +1,9 @@
 use super::{App, AppState, ModalType, VectorListItem};
-use core::Payload;
+use core::{DenseVector, Payload, Similarity};
 use crossterm::event::{Event, KeyCode, KeyEvent};
-use std::io;
+use index::distance;
 use std::path::PathBuf;
+use std::{cmp::Ordering, io};
 
 // Set how many vectors to fetch per function call in list_vectors
 const VECTOR_LIST_LIMIT: usize = 50;
@@ -43,7 +44,8 @@ fn handle_modal_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
                     Some(ModalType::Success)
                     | Some(ModalType::Failure)
                     | Some(ModalType::Error)
-                    | Some(ModalType::VectorDetails) => {
+                    | Some(ModalType::VectorDetails)
+                    | Some(ModalType::ListVectors) => {
                         // leave open
                     }
                     _ => app.modal.close(),
@@ -208,6 +210,7 @@ fn handle_general_keys(app: &mut App, key: KeyEvent) {
                     1 => app.modal.show_get_vector(),
                     2 => app.modal.show_insert_vector(),
                     3 => app.modal.show_delete_vector(),
+                    4 => app.modal.show_search_similar_vectors(),
                     _ => {}
                 }
             } else {
@@ -344,6 +347,110 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             } else {
                 app.modal.show_error("No database selected!");
             }
+        }
+        Some(ModalType::SearchSimilarVectors) => {
+            let k_text = app.modal.get_input_value();
+            let vector_text = app.modal.secondary_input().to_string();
+
+            let k = k_text.parse::<usize>().ok().filter(|value| *value > 0);
+            if k.is_none() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "k should be a positive integer!",
+                ));
+            }
+            let k = k.unwrap();
+
+            let Some(query) = parse_vector(&vector_text) else {
+                app.modal
+                    .show_failure("Query vector should be a list of floats (e.g. [0.1,0.2,...])!");
+                return Ok(());
+            };
+
+            let Some(storage) = &app.database.storage_engine else {
+                app.modal.show_error("No database selected!");
+                return Ok(());
+            };
+
+            let mut all_vectors: Vec<(u64, DenseVector)> = Vec::new();
+            let mut next_offset = Some(0);
+            while let Some(offset) = next_offset {
+                let response = storage
+                    .list_vectors(offset, VECTOR_LIST_LIMIT)
+                    .map_err(to_io)?;
+                let Some((vectors, following_offset)) = response else {
+                    break;
+                };
+
+                if vectors.is_empty() {
+                    break;
+                }
+
+                let batch_len = vectors.len();
+                for (id, vector) in vectors {
+                    all_vectors.push((id, vector));
+                }
+
+                if batch_len == VECTOR_LIST_LIMIT {
+                    next_offset = Some(following_offset);
+                } else {
+                    next_offset = None;
+                }
+            }
+
+            if all_vectors.is_empty() {
+                app.modal
+                    .show_failure("No vectors available in the selected database!");
+                return Ok(());
+            }
+
+            let query_len = query.len();
+            let mut scored: Vec<(f32, u64, DenseVector)> = Vec::new();
+            // currently to avoid panic on dimension mismatch, we skip vectors with different dims
+            // TODO: enforce consistent dimensions on insert/search functions
+            for (id, vector) in all_vectors.into_iter() {
+                if vector.len() != query_len {
+                    continue;
+                }
+                // TODO: replace with search function after enforcing dimension consistency
+                let score = distance(vector.clone(), query.clone(), Similarity::Cosine);
+                scored.push((score, id, vector));
+            }
+
+            if scored.is_empty() {
+                app.modal
+                    .show_failure("No vectors with matching dimensions found for the query!");
+                return Ok(());
+            }
+
+            scored.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+
+            let take = k.min(scored.len());
+
+            app.vector_list_items.clear();
+            app.vector_detail = None;
+            app.vector_list_next_offset = None;
+            app.vector_list_post_restore = false;
+            app.vector_list_selected_index = 0;
+
+            for (_, id, vector) in scored.into_iter().take(take) {
+                let payload = storage.get_payload(id).map_err(to_io)?;
+                app.vector_list_items.push(VectorListItem {
+                    id,
+                    vector,
+                    payload,
+                });
+            }
+
+            if app.vector_list_items.is_empty() {
+                app.modal
+                    .show_failure("Unable to display results. Try a different query vector.");
+                return Ok(());
+            }
+
+            app.modal.show_vector_list();
+            let len = app.vector_list_items.len();
+            app.modal.set_selected_index(0, len);
         }
         _ => {}
     }

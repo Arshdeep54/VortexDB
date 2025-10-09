@@ -22,6 +22,7 @@ pub enum ModalType {
     GetVector,
     InsertVector,
     DeleteVector,
+    SearchSimilarVectors,
 }
 
 #[derive(Debug, Clone)]
