@@ -1,4 +1,5 @@
 mod database;
+mod embeddings;
 mod events;
 mod modal;
 mod state;
@@ -17,6 +18,7 @@ pub struct App {
     pub vector_selected: usize,
     pub database: database::DatabaseManager,
     pub modal: modal::ModalManager,
+    pub embeddings: embeddings::EmbeddingClient,
 
     pub vector_list_items: Vec<VectorListItem>,
     pub vector_list_next_offset: Option<u64>,
@@ -42,6 +44,7 @@ impl App {
             vector_selected: 0,
             database: database::DatabaseManager::new(),
             modal: modal::ModalManager::new(),
+            embeddings: embeddings::EmbeddingClient::default(),
 
             vector_list_items: Vec::new(),
             vector_list_next_offset: None,
@@ -105,12 +108,16 @@ impl App {
                     self.modal.select_next(max_items);
                 } else {
                     let max_items = db::get_db_operations_count();
-                    self.db_selected = (self.db_selected + 1).min(max_items - 1);
+                    if max_items > 0 {
+                        self.db_selected = (self.db_selected + 1).min(max_items - 1);
+                    }
                 }
             }
             AppState::VectorOperations => {
                 let max_items = vector_operations::get_vector_operations_count();
-                self.vector_selected = (self.vector_selected + 1).min(max_items - 1);
+                if max_items > 0 {
+                    self.vector_selected = (self.vector_selected + 1).min(max_items - 1);
+                }
             }
         }
     }

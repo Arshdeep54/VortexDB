@@ -117,6 +117,42 @@ impl ModalManager {
         self.error_message = None;
     }
 
+    pub fn show_text_embedding(&mut self) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::TextEmbedding);
+        self.input_buffer.clear();
+        self.secondary_input.clear();
+        self.tertiary_input.clear();
+        self.active_field = 0;
+        self.input_mode = true;
+        self.selected_index = 0;
+        self.error_message = None;
+    }
+
+    pub fn show_sentence_embedding(&mut self) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::SentenceEmbedding);
+        self.input_buffer.clear();
+        self.secondary_input.clear();
+        self.tertiary_input.clear();
+        self.active_field = 0;
+        self.input_mode = true;
+        self.selected_index = 0;
+        self.error_message = None;
+    }
+
+    pub fn show_image_embedding(&mut self) {
+        self.show_modal = true;
+        self.modal_type = Some(ModalType::ImageEmbedding);
+        self.input_buffer.clear();
+        self.secondary_input.clear();
+        self.tertiary_input.clear();
+        self.active_field = 0;
+        self.input_mode = true;
+        self.selected_index = 0;
+        self.error_message = None;
+    }
+
     pub fn show_vector_list(&mut self) {
         self.show_modal = true;
         self.modal_type = Some(ModalType::ListVectors);
@@ -296,6 +332,21 @@ impl ModalManager {
             ],
             Some(DeleteVector) => vec![
                 ("Enter Delete".into(), Color::Green),
+                ("Esc Cancel".into(), Color::Red),
+            ],
+            Some(TextEmbedding) => vec![
+                ("Tab Next".into(), Color::Gray),
+                ("Enter Insert".into(), Color::Green),
+                ("Esc Cancel".into(), Color::Red),
+            ],
+            Some(SentenceEmbedding) => vec![
+                ("Tab Next".into(), Color::Gray),
+                ("Enter Insert".into(), Color::Green),
+                ("Esc Cancel".into(), Color::Red),
+            ],
+            Some(ImageEmbedding) => vec![
+                ("Tab Next".into(), Color::Gray),
+                ("Enter Insert".into(), Color::Green),
                 ("Esc Cancel".into(), Color::Red),
             ],
             Some(ListVectors) => vec![

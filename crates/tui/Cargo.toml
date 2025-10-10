@@ -14,3 +14,5 @@ chrono = { version = "0.4", features = ["serde"] }
 core = { path = "../core" }
 storage = { path = "../storage" }
 index = { path = "../index" }
+serde_json.workspace = true
+reqwest = { version = "0.12", features = ["json", "blocking", "multipart"] }

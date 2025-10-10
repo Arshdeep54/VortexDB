@@ -23,6 +23,9 @@ pub enum ModalType {
     InsertVector,
     DeleteVector,
     SearchSimilarVectors,
+    TextEmbedding,
+    SentenceEmbedding,
+    ImageEmbedding,
 }
 
 #[derive(Debug, Clone)]

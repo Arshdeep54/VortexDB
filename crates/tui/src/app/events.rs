@@ -197,26 +197,24 @@ fn handle_general_keys(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Char('q') | KeyCode::Esc => app.quit(),
         KeyCode::Right => app.next_page(),
-        KeyCode::Enter => {
-            // Map options with vector operations page
-            // TODO: Add semantic search
-            if matches!(app.state, AppState::VectorOperations) {
-                match app.vector_selected {
-                    0 => {
-                        if let Err(err) = initialize_vector_listing(app) {
-                            app.modal.show_error(err.to_string());
-                        }
+        KeyCode::Enter => match app.state {
+            AppState::VectorOperations => match app.vector_selected {
+                0 => {
+                    if let Err(err) = initialize_vector_listing(app) {
+                        app.modal.show_error(err.to_string());
                     }
-                    1 => app.modal.show_get_vector(),
-                    2 => app.modal.show_insert_vector(),
-                    3 => app.modal.show_delete_vector(),
-                    4 => app.modal.show_search_similar_vectors(),
-                    _ => {}
                 }
-            } else {
-                app.next_page()
-            }
-        }
+                1 => app.modal.show_get_vector(),
+                2 => app.modal.show_insert_vector(),
+                3 => app.modal.show_delete_vector(),
+                4 => app.modal.show_search_similar_vectors(),
+                5 => app.modal.show_text_embedding(),
+                6 => app.modal.show_sentence_embedding(),
+                7 => app.modal.show_image_embedding(),
+                _ => {}
+            },
+            _ => app.next_page(),
+        },
         KeyCode::Left => app.previous_page(),
         KeyCode::Up => app.select_previous(),
         KeyCode::Down => app.select_next(),
@@ -451,6 +449,165 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             app.modal.show_vector_list();
             let len = app.vector_list_items.len();
             app.modal.set_selected_index(0, len);
+        }
+        Some(ModalType::TextEmbedding) => {
+            let id_text = app.modal.get_input_value();
+            let text_raw = app.modal.secondary_input().to_string();
+            let payload_text = app.modal.tertiary_input().to_string();
+
+            let trimmed_text = text_raw.trim();
+
+            let id = id_text.parse::<u64>().map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidInput, "IDs should be an integer!")
+            })?;
+
+            if trimmed_text.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Text cannot be empty!",
+                ));
+            }
+
+            let Some(storage) = &app.database.storage_engine else {
+                app.modal.show_error("No database selected!");
+                return Ok(());
+            };
+
+            match app.embeddings.text_embeddings(trimmed_text) {
+                Ok(vector) => {
+                    let dims = vector.len();
+                    let payload_opt = if payload_text.trim().is_empty() {
+                        None
+                    } else {
+                        Some(Payload {})
+                    };
+
+                    match storage
+                        .insert_point(id, Some(vector), payload_opt)
+                        .map_err(to_io)
+                    {
+                        Ok(()) => app.modal.show_success(format!(
+                            "Text embedding inserted (id={id}, {dims} dims)."
+                        )),
+                        Err(err) => app
+                            .modal
+                            .show_failure(format!("Failed to insert embedding: {err}")),
+                    }
+                }
+                Err(err) => app
+                    .modal
+                    .show_failure(format!("Failed to generate embedding: {err}")),
+            }
+        }
+        Some(ModalType::SentenceEmbedding) => {
+            let id_text = app.modal.get_input_value();
+            let sentence_raw = app.modal.secondary_input().to_string();
+            let payload_text = app.modal.tertiary_input().to_string();
+
+            let trimmed_sentence = sentence_raw.trim();
+
+            let id = id_text.parse::<u64>().map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidInput, "IDs should be an integer!")
+            })?;
+
+            if trimmed_sentence.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Sentence cannot be empty!",
+                ));
+            }
+
+            let Some(storage) = &app.database.storage_engine else {
+                app.modal.show_error("No database selected!");
+                return Ok(());
+            };
+
+            match app.embeddings.sentence_embeddings(trimmed_sentence) {
+                Ok(vector) => {
+                    let dims = vector.len();
+                    let payload_opt = if payload_text.trim().is_empty() {
+                        None
+                    } else {
+                        Some(Payload {})
+                    };
+
+                    match storage
+                        .insert_point(id, Some(vector), payload_opt)
+                        .map_err(to_io)
+                    {
+                        Ok(()) => app.modal.show_success(format!(
+                            "Sentence embedding inserted (id={id}, {dims} dims)."
+                        )),
+                        Err(err) => app
+                            .modal
+                            .show_failure(format!("Failed to insert embedding: {err}")),
+                    }
+                }
+                Err(err) => app
+                    .modal
+                    .show_failure(format!("Failed to generate embedding: {err}")),
+            }
+        }
+        Some(ModalType::ImageEmbedding) => {
+            let id_text = app.modal.get_input_value();
+            let path_raw = app.modal.secondary_input().to_string();
+            let payload_text = app.modal.tertiary_input().to_string();
+
+            let trimmed_path = path_raw.trim();
+
+            let id = id_text.parse::<u64>().map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidInput, "IDs should be an integer!")
+            })?;
+
+            if trimmed_path.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Image path cannot be empty!",
+                ));
+            }
+
+            let Some(storage) = &app.database.storage_engine else {
+                app.modal.show_error("No database selected!");
+                return Ok(());
+            };
+
+            let path = PathBuf::from(trimmed_path);
+            if !path.exists() {
+                app.modal
+                    .show_failure(format!("Image not found at path '{trimmed_path}'"));
+                return Ok(());
+            }
+            if !path.is_file() {
+                app.modal
+                    .show_failure(format!("Path '{trimmed_path}' is not a file"));
+                return Ok(());
+            }
+
+            match app.embeddings.image_embeddings(&path) {
+                Ok(vector) => {
+                    let dims = vector.len();
+                    let payload_opt = if payload_text.trim().is_empty() {
+                        None
+                    } else {
+                        Some(Payload {})
+                    };
+
+                    match storage
+                        .insert_point(id, Some(vector), payload_opt)
+                        .map_err(to_io)
+                    {
+                        Ok(()) => app.modal.show_success(format!(
+                            "Image embedding inserted (id={id}, {dims} dims)."
+                        )),
+                        Err(err) => app
+                            .modal
+                            .show_failure(format!("Failed to insert embedding: {err}")),
+                    }
+                }
+                Err(err) => app
+                    .modal
+                    .show_failure(format!("Failed to generate embedding: {err}")),
+            }
         }
         _ => {}
     }

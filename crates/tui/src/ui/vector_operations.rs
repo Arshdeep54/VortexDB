@@ -15,6 +15,9 @@ const VECTOR_OPERATIONS: &[&str] = &[
     "Insert Vector",
     "Delete Vector",
     "Search Similar Vectors",
+    "Insert Text Embedding",
+    "Insert Sentence Embedding",
+    "Insert Image Embedding",
 ];
 
 fn get_vector_items() -> Vec<ListItem<'static>> {

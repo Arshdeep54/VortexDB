@@ -34,6 +34,9 @@ pub fn render_modal(f: &mut Frame, app: &App) {
             render_search_similar_vectors_modal(f, app, popup_area)
         }
         Some(ModalType::DeleteVector) => render_delete_vector_modal(f, app, popup_area),
+        Some(ModalType::TextEmbedding) => render_text_embedding_modal(f, app, popup_area),
+        Some(ModalType::SentenceEmbedding) => render_sentence_embedding_modal(f, app, popup_area),
+        Some(ModalType::ImageEmbedding) => render_image_embedding_modal(f, app, popup_area),
         Some(ModalType::ListVectors) => render_vector_list_modal(f, app, popup_area),
         Some(ModalType::VectorDetails) => render_vector_details_modal(f, app, popup_area),
         Some(ModalType::Success) => render_success_modal(f, app, popup_area),
@@ -156,6 +159,96 @@ fn render_delete_vector_modal(f: &mut Frame, app: &App, area: Rect) {
 
     if app.input_mode() {
         f.set_cursor(area.x + 1 + app.input_buffer().len() as u16, area.y + 2);
+    }
+}
+
+fn render_text_embedding_modal(f: &mut Frame, app: &App, area: Rect) {
+    let block = Block::default()
+        .title("Generate Text Embedding")
+        .borders(Borders::ALL);
+
+    let lines = vec![
+        Line::from(Span::raw("ID (int):")),
+        Line::from(Span::raw(app.input_buffer().to_string())),
+        Line::from(Span::raw("")),
+        Line::from(Span::raw("Text:")),
+        Line::from(Span::raw(app.secondary_input().to_string())),
+        Line::from(Span::raw("")),
+        Line::from(Span::raw("Payload (optional):")),
+        Line::from(Span::raw(app.tertiary_input().to_string())),
+    ];
+
+    let input = Paragraph::new(lines)
+        .block(block)
+        .wrap(ratatui::widgets::Wrap { trim: true });
+    f.render_widget(input, area);
+
+    if app.input_mode() {
+        match app.active_field() {
+            0 => f.set_cursor(area.x + 1 + app.input_buffer().len() as u16, area.y + 2),
+            1 => f.set_cursor(area.x + 1 + app.secondary_input().len() as u16, area.y + 5),
+            _ => f.set_cursor(area.x + 1 + app.tertiary_input().len() as u16, area.y + 8),
+        }
+    }
+}
+
+fn render_sentence_embedding_modal(f: &mut Frame, app: &App, area: Rect) {
+    let block = Block::default()
+        .title("Generate Sentence Embedding")
+        .borders(Borders::ALL);
+
+    let lines = vec![
+        Line::from(Span::raw("ID (int):")),
+        Line::from(Span::raw(app.input_buffer().to_string())),
+        Line::from(Span::raw("")),
+        Line::from(Span::raw("Sentence:")),
+        Line::from(Span::raw(app.secondary_input().to_string())),
+        Line::from(Span::raw("")),
+        Line::from(Span::raw("Payload (optional):")),
+        Line::from(Span::raw(app.tertiary_input().to_string())),
+    ];
+
+    let input = Paragraph::new(lines)
+        .block(block)
+        .wrap(ratatui::widgets::Wrap { trim: true });
+    f.render_widget(input, area);
+
+    if app.input_mode() {
+        match app.active_field() {
+            0 => f.set_cursor(area.x + 1 + app.input_buffer().len() as u16, area.y + 2),
+            1 => f.set_cursor(area.x + 1 + app.secondary_input().len() as u16, area.y + 5),
+            _ => f.set_cursor(area.x + 1 + app.tertiary_input().len() as u16, area.y + 8),
+        }
+    }
+}
+
+fn render_image_embedding_modal(f: &mut Frame, app: &App, area: Rect) {
+    let block = Block::default()
+        .title("Generate Image Embedding")
+        .borders(Borders::ALL);
+
+    let lines = vec![
+        Line::from(Span::raw("ID (int):")),
+        Line::from(Span::raw(app.input_buffer().to_string())),
+        Line::from(Span::raw("")),
+        Line::from(Span::raw("Image Path:")),
+        Line::from(Span::raw(app.secondary_input().to_string())),
+        Line::from(Span::raw("")),
+        Line::from(Span::raw("Payload (optional):")),
+        Line::from(Span::raw(app.tertiary_input().to_string())),
+    ];
+
+    let input = Paragraph::new(lines)
+        .block(block)
+        .wrap(ratatui::widgets::Wrap { trim: true });
+    f.render_widget(input, area);
+
+    if app.input_mode() {
+        match app.active_field() {
+            0 => f.set_cursor(area.x + 1 + app.input_buffer().len() as u16, area.y + 2),
+            1 => f.set_cursor(area.x + 1 + app.secondary_input().len() as u16, area.y + 5),
+            _ => f.set_cursor(area.x + 1 + app.tertiary_input().len() as u16, area.y + 8),
+        }
     }
 }
 
