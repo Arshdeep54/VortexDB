@@ -16,3 +16,4 @@ storage = { path = "../storage" }
 index = { path = "../index" }
 serde_json.workspace = true
 reqwest = { version = "0.12", features = ["json", "blocking", "multipart"] }
+dotenv = "0.15"

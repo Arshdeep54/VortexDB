@@ -57,6 +57,7 @@ impl From<reqwest::Error> for EmbeddingError {
 
 impl EmbeddingClient {
     pub fn new() -> Self {
+        dotenv::dotenv().ok();
         let client = Client::builder()
             .timeout(Duration::from_secs(15))
             .build()
