@@ -6,4 +6,5 @@ pub enum DbError {
     DeserializationError,
     IndexError(String),
     LockError,
+    IndexInitError, //TODO: Change this
 }
