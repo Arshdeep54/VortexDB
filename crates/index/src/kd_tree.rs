@@ -1,4 +1,4 @@
-use core::{DbError, DenseVector, IndexedVector, PointId, Similarity};
+use defs::{DbError, DenseVector, IndexedVector, PointId, Similarity};
 use std::{
     cmp::Ordering,
     collections::{BinaryHeap, HashMap},
@@ -349,7 +349,7 @@ impl VectorIndex for KDTree {
 
     fn search(
         &self,
-        query_vector: core::DenseVector,
+        query_vector: DenseVector,
         similarity: Similarity,
         k: usize,
     ) -> Result<Vec<PointId>, DbError> {
