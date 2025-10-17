@@ -20,7 +20,15 @@ impl DatabaseManager {
         }
     }
 
+    fn close_current_database(&mut self) {
+        self.storage_engine = None;
+        self.current_db_path = None;
+        self.selected_database = None;
+    }
+
     pub fn create_new_database(&mut self, name: String, path: PathBuf) -> io::Result<()> {
+        // Drop any database currently open before creating a new one
+        self.close_current_database();
         // Check if database already exists to avoid name collisions
         if path.exists() {
             return Err(io::Error::new(
@@ -45,6 +53,8 @@ impl DatabaseManager {
     }
 
     pub fn select_database(&mut self, name: String, path: PathBuf) -> io::Result<()> {
+        self.close_current_database();
+
         if !path.exists() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
