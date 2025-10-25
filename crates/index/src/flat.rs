@@ -67,6 +67,7 @@ impl VectorIndex for FlatIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
 
     #[test]
     fn test_flat_index_new() {
@@ -78,11 +79,11 @@ mod tests {
     fn test_flat_index_build() {
         let vectors = vec![
             IndexedVector {
-                id: 1,
+                id: Uuid::new_v4(),
                 vector: vec![1.0, 2.0, 3.0],
             },
             IndexedVector {
-                id: 2,
+                id: Uuid::new_v4(),
                 vector: vec![4.0, 5.0, 6.0],
             },
         ];
@@ -94,7 +95,7 @@ mod tests {
     fn test_insert() {
         let mut index = FlatIndex::new();
         let vector = IndexedVector {
-            id: 1,
+            id: Uuid::new_v4(),
             vector: vec![1.0, 2.0, 3.0],
         };
 
@@ -106,13 +107,14 @@ mod tests {
     #[test]
     fn test_delete_existing() {
         let mut index = FlatIndex::new();
+        let existing_id = Uuid::new_v4();
         let vector = IndexedVector {
-            id: 1,
+            id: existing_id,
             vector: vec![1.0, 2.0, 3.0],
         };
         index.insert(vector).unwrap();
 
-        let result = index.delete(1).unwrap();
+        let result = index.delete(existing_id).unwrap();
         assert!(result);
         assert_eq!(index.index.len(), 0);
     }
@@ -121,12 +123,12 @@ mod tests {
     fn test_delete_non_existing() {
         let mut index = FlatIndex::new();
         let vector = IndexedVector {
-            id: 1,
+            id: Uuid::new_v4(),
             vector: vec![1.0, 2.0, 3.0],
         };
         index.insert(vector).unwrap();
 
-        let result = index.delete(999).unwrap();
+        let result = index.delete(Uuid::new_v4()).unwrap();
         assert!(!result);
         assert_eq!(index.index.len(), 1);
     }
@@ -134,21 +136,24 @@ mod tests {
     #[test]
     fn test_search_euclidean() {
         let mut index = FlatIndex::new();
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
         index
             .insert(IndexedVector {
-                id: 1,
+                id: id1,
                 vector: vec![1.0, 1.0],
             })
             .unwrap();
         index
             .insert(IndexedVector {
-                id: 2,
+                id: id2,
                 vector: vec![2.0, 2.0],
             })
             .unwrap();
         index
             .insert(IndexedVector {
-                id: 3,
+                id: id3,
                 vector: vec![10.0, 10.0],
             })
             .unwrap();
@@ -156,53 +161,59 @@ mod tests {
         let results = index
             .search(vec![0.0, 0.0], Similarity::Euclidean, 2)
             .unwrap();
-        assert_eq!(results, vec![1, 2]);
+        assert_eq!(results, vec![id1, id2]);
     }
 
     #[test]
     fn test_search_cosine() {
         let mut index = FlatIndex::new();
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
         index
             .insert(IndexedVector {
-                id: 1,
+                id: id1,
                 vector: vec![1.0, 0.0],
             })
             .unwrap();
         index
             .insert(IndexedVector {
-                id: 2,
+                id: id2,
                 vector: vec![0.5, 0.5],
             })
             .unwrap();
         index
             .insert(IndexedVector {
-                id: 3,
+                id: id3,
                 vector: vec![0.0, 1.0],
             })
             .unwrap();
 
         let results = index.search(vec![1.0, 1.0], Similarity::Cosine, 2).unwrap();
-        assert_eq!(results, vec![2, 1]);
+        assert_eq!(results, vec![id2, id1]);
     }
 
     #[test]
     fn test_search_manhattan() {
         let mut index = FlatIndex::new();
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
         index
             .insert(IndexedVector {
-                id: 1,
+                id: id1,
                 vector: vec![1.0, 1.0],
             })
             .unwrap();
         index
             .insert(IndexedVector {
-                id: 2,
+                id: id2,
                 vector: vec![2.0, 2.0],
             })
             .unwrap();
         index
             .insert(IndexedVector {
-                id: 3,
+                id: id3,
                 vector: vec![5.0, 5.0],
             })
             .unwrap();
@@ -210,27 +221,30 @@ mod tests {
         let results = index
             .search(vec![0.0, 0.0], Similarity::Manhattan, 2)
             .unwrap();
-        assert_eq!(results, vec![1, 2]);
+        assert_eq!(results, vec![id1, id2]);
     }
 
     #[test]
     fn test_search_hamming() {
         let mut index = FlatIndex::new();
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
         index
             .insert(IndexedVector {
-                id: 1,
+                id: id1,
                 vector: vec![1.0, 0.0, 1.0, 0.0],
             })
             .unwrap();
         index
             .insert(IndexedVector {
-                id: 2,
+                id: id2,
                 vector: vec![1.0, 0.0, 0.0, 0.0],
             })
             .unwrap();
         index
             .insert(IndexedVector {
-                id: 3,
+                id: id3,
                 vector: vec![0.0, 0.0, 0.0, 0.0],
             })
             .unwrap();
@@ -238,7 +252,7 @@ mod tests {
         let results = index
             .search(vec![1.0, 0.0, 0.0, 0.0], Similarity::Hamming, 2)
             .unwrap();
-        assert_eq!(results, vec![2, 3]);
+        assert_eq!(results, vec![id2, id3]);
     }
 
     #[test]

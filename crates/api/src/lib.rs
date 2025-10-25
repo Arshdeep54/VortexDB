@@ -2,7 +2,7 @@ use core::{DbError, IndexedVector, Similarity};
 
 use core::{DenseVector, Payload, Point, PointId};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+// use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use index::flat::FlatIndex;
@@ -10,10 +10,16 @@ use index::{IndexType, VectorIndex};
 use storage::rocks_db::RocksDbStorage;
 use storage::{StorageEngine, StorageType};
 
-static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+use uuid::Uuid;
 
-fn generate_point_id() -> u64 {
-    NEXT_ID.fetch_add(1, Ordering::Relaxed)
+// static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+
+// fn generate_point_id() -> u64 {
+//     NEXT_ID.fetch_add(1, Ordering::Relaxed)
+// }
+
+fn generate_point_id() -> PointId {
+    Uuid::new_v4()
 }
 
 pub struct VectorDb {
@@ -116,6 +122,7 @@ mod tests {
     // TODO: Add more exhaustive tests
 
     use super::*;
+    use core::ContentType;
     use tempfile::tempdir;
 
     // Helper function to create a test database
@@ -134,24 +141,35 @@ mod tests {
     fn test_insert_and_get() {
         let db = create_test_db();
         let vector = vec![1.0, 2.0, 3.0];
-        let payload = Payload {};
+        let payload = Payload {
+            content_type: ContentType::Text,
+            content: "Test content".to_string(),
+        };
 
         // Test insert
-        let id = db.insert(vector.clone(), payload).unwrap();
-        assert!(id > 0);
+        let id = db.insert(vector.clone(), payload.clone()).unwrap();
+        assert!(id != Uuid::nil());
 
         // Test get
         let point = db.get(id).unwrap().unwrap();
         assert_eq!(point.id, id);
         assert_eq!(point.vector.as_ref().unwrap(), &vector);
         assert_eq!(point.payload.as_ref().unwrap(), &payload);
+        assert_eq!(
+            point.payload.as_ref().unwrap().content_type,
+            ContentType::Text
+        );
+        assert_eq!(point.payload.as_ref().unwrap().content, "Test content");
     }
 
     #[test]
     fn test_delete() {
         let db = create_test_db();
         let vector = vec![1.0, 2.0, 3.0];
-        let payload = Payload {};
+        let payload = Payload {
+            content_type: ContentType::Text,
+            content: "Test content".to_string(),
+        };
 
         // Insert a point
         let id = db.insert(vector, payload).unwrap();
@@ -174,7 +192,11 @@ mod tests {
 
         let mut ids = Vec::new();
         for vector in vectors {
-            let id = db.insert(vector, Payload {}).unwrap();
+            let payload = Payload {
+                content_type: ContentType::Text,
+                content: format!("Test content {vector:?}"),
+            };
+            let id = db.insert(vector, payload).unwrap();
             ids.push(id);
         }
 
@@ -194,7 +216,15 @@ mod tests {
         let mut ids = Vec::new();
         for i in 0..5 {
             let vector = vec![i as f32, 0.0, 0.0];
-            let id = db.insert(vector, Payload {}).unwrap();
+            let id = db
+                .insert(
+                    vector,
+                    Payload {
+                        content_type: ContentType::Text,
+                        content: format!("Test content {i}"),
+                    },
+                )
+                .unwrap();
             ids.push(id);
         }
 
@@ -210,7 +240,7 @@ mod tests {
         let db = create_test_db();
 
         // Get non-existent point
-        assert!(db.get(999).unwrap().is_none());
+        assert!(db.get(Uuid::new_v4()).unwrap().is_none());
 
         let query = vec![1.0, 2.0, 3.0];
         let results = db.search(query, Similarity::Cosine, 10).unwrap();
