@@ -2,24 +2,35 @@ mod config;
 mod handler;
 
 use api::{init_api, DbConfig, VectorDb};
-use axum::{routing::{delete,get,post}, Router};
-
+use axum::{routing::{get,post}, Router};
+use tokio::net::TcpListener;
 use config::Config;
-use defs::DbError;
+use defs::{AppError, ServerError };
 use index::IndexType;
 use storage::StorageType;
 use tracing::info;
 
 use std::sync::Arc;
-use handler::{insert_point_handler,get_point_handler,delete_point_handler,search_points_handler};
+use handler::{insert_point_handler,get_point_handler,delete_point_handler,search_points_handler, root_handler};
 
 #[derive(Clone)]
 struct AppState {
     db: Arc<VectorDb>,
 }
 
+pub fn app(db: Arc<VectorDb>) -> Router {
+    let app_state = AppState { db };
+    Router::new()
+        .route("/", get(root_handler))
+        .route("/points", post(insert_point_handler))
+        .route("/points/{id}", get(get_point_handler).delete(delete_point_handler),
+        )
+        .route("/points/search", post(search_points_handler))
+        .with_state(app_state)
+
+}
 #[tokio::main]
-async fn main() -> Result<(), DbError> {
+async fn main() -> Result<(),AppError > {
     tracing_subscriber::fmt::init();
 
     let config = Config::from_env();
@@ -38,30 +49,100 @@ async fn main() -> Result<(), DbError> {
         dimension: config.vector_dimension,
     };
 
-    let db = init_api(db_config)?;
-    let app_state = AppState { db: Arc::new(db) };
+    let db = init_api(db_config).map_err(|err| AppError::DbError(err))?;
 
     // axum init
-    let app = Router::new()
-        .route("/", get(root_handler))
-        .route("/points", post(insert_point_handler))
-        .route("/points/{id}", get(get_point_handler).delete(delete_point_handler),
-        )
-        .route("/points/search", post(search_points_handler))
-        .with_state(app_state);
-
     info!(" Server listening on http://{}", config.listen_addr);
 
-    let listener = tokio::net::TcpListener::bind(config.listen_addr)
+    let app = app(Arc::new(db));
+
+    let listener = TcpListener::bind(config.listen_addr)
         .await
-        .unwrap();
+        .map_err(|err|AppError::ServerError(ServerError::Bind(err)))?;
     axum::serve(listener, app.into_make_service())
         .await
-        .unwrap();
+        .map_err(|err| AppError::ServerError(ServerError::Serve(err)))?;
 
     Ok(())
 }
 
-async fn root_handler() -> &'static str {
-    "Vector Database server is running!"
+#[cfg(test)]
+
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    use axum::http::StatusCode;
+    use axum_test::TestServer;
+    use serde_json::json;
+    use defs::{Point, DenseVector};
+    use crate::handler::SearchResponse;
+
+    fn create_test_db() -> VectorDb {
+        let temp_dir = tempdir().unwrap();
+        let config = DbConfig {
+            storage_type: StorageType::RocksDb,
+            index_type: IndexType::Flat,
+            data_path: temp_dir.path().to_path_buf(),
+            dimension: 2,
+        };
+        init_api(config).unwrap()
+    }
+
+    fn setup_test_server() -> TestServer {
+        let db = Arc::new(create_test_db());
+        let test_app = app(db);
+        TestServer::new(test_app).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_all_routes() {
+        let server= setup_test_server();
+        // 1 Insert a point
+        let point_id = 1;
+        let insert_response = server
+            .post("/points")
+            .json(&json!({"vector": [0.1, 0.2], "payload": {}}))
+            .await;
+        assert_eq!(insert_response.status_code(), StatusCode::CREATED);
+        println!("Insert Test passed");
+
+        // 2 Get the point back
+        let get_response = server.get(&format!("/points/{}", point_id)).await;
+        get_response.assert_status_ok();
+        let point: Point = get_response.json();
+        assert_eq!(point.id, point_id);
+        let expected_vec: DenseVector = vec![0.1, 0.2];
+        assert_eq!(point.vector.unwrap(), expected_vec);
+        println!("Retrival Test passed");
+
+
+        println!("Deletion Test passed");
+
+        // 3 Search for the point
+        let search_response = server
+            .post("/points/search")
+            .json(&json!({
+                "vector": [0.11, 0.22],
+                "similarity": "Cosine",
+                "limit": 1
+            }))
+            .await;
+        search_response.assert_status_ok();
+        println!("{:?}",search_response);
+        let search_results: SearchResponse = search_response.json();
+        assert_eq!(search_results.results.len(), 1);
+        assert_eq!(search_results.results[0], point_id);
+        println!("Search Test passed");
+
+        // 4 Delete the point
+        let delete_response = server.delete(&format!("/points/{}", point_id)).await;
+        assert_eq!(delete_response.status_code(), StatusCode::NO_CONTENT);
+
+        let get_after_delete_response = server.get(&format!("/points/{}", point_id)).await;
+        get_after_delete_response.assert_status_not_found();
+
+
+
+    }
+
 }

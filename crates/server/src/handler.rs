@@ -16,6 +16,10 @@ pub struct InsertResponse {
     pub point_id: PointId,
 }
 
+pub async fn root_handler() -> &'static str {
+    "Vector Database server is running!"
+}
+
 pub async fn insert_point_handler(State(app_state): State<AppState>, Json(request): Json<InsertRequest>, ) -> Result<(StatusCode, Json<InsertResponse>), (StatusCode, String)> {
     match app_state.db.insert(request.vector, request.payload) {
         Ok(point_id) => {
@@ -81,7 +85,7 @@ pub struct SearchRequest {
     pub limit: usize,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize,Deserialize,Debug)]
 pub struct SearchResponse {
     pub results: Vec<PointId>,
 }
