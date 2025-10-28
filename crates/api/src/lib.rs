@@ -88,6 +88,14 @@ impl VectorDb {
 
         Ok(vectors)
     }
+
+    pub fn list(
+        &self,
+        offset: PointId,
+        limit: usize,
+    ) -> Result<Option<(Vec<(PointId, DenseVector)>, PointId)>, DbError> {
+        self.storage.list_vectors(offset, limit)
+    }
 }
 
 pub struct DbConfig {
