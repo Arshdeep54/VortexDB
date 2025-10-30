@@ -96,6 +96,31 @@ impl VectorDb {
     ) -> Result<Option<(Vec<(PointId, DenseVector)>, PointId)>, DbError> {
         self.storage.list_vectors(offset, limit)
     }
+
+    // populates the current index with vectors from the storage
+    pub fn build_index(&self) -> Result<usize, DbError> {
+        // start from the minimal UUID and fetch in bounded batches and insert
+        let mut offset = Uuid::nil();
+        let page_size: usize = 1000;
+        let mut inserted: usize = 0;
+
+        let mut index = self.index.write().map_err(|_| DbError::LockError)?;
+
+        while let Some((batch, next_offset)) = self.storage.list_vectors(offset, page_size)? {
+            if batch.is_empty() || next_offset == offset {
+                break;
+            }
+
+            for (id, vector) in batch {
+                index.insert(IndexedVector { id, vector })?;
+                inserted += 1;
+            }
+
+            offset = next_offset;
+        }
+
+        Ok(inserted)
+    }
 }
 
 pub struct DbConfig {
@@ -120,6 +145,9 @@ pub fn init_api(config: DbConfig) -> Result<VectorDb, DbError> {
 
     // Init the db
     let db = VectorDb::_new(storage, index);
+
+    // populate the current index with vectors from the storage
+    db.build_index()?;
 
     Ok(db)
 }
