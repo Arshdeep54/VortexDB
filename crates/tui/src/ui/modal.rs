@@ -47,14 +47,20 @@ fn render_create_database_modal(f: &mut Frame, app: &App, area: Rect) {
         .title("Create New Database")
         .borders(Borders::ALL);
 
-    let input = Paragraph::new(app.input_buffer())
+    let lines = vec![
+        Line::from(Span::raw("Enter name of new database:")),
+        Line::from(Span::raw(app.input_buffer().to_string())),
+    ];
+
+    let input = Paragraph::new(lines)
         .block(block)
         .wrap(ratatui::widgets::Wrap { trim: true });
 
     f.render_widget(input, area);
 
     if app.input_mode() {
-        f.set_cursor(area.x + app.input_buffer().len() as u16 + 1, area.y + 1);
+        // place cursor on the second line where the input buffer is shown
+        f.set_cursor(area.x + 1 + app.input_buffer().len() as u16, area.y + 2);
     }
 }
 
