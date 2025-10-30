@@ -282,4 +282,58 @@ mod tests {
         let results = db.search(query, Similarity::Cosine, 10).unwrap();
         assert_eq!(results.len(), 0);
     }
+
+    #[test]
+    fn test_list_vectors() {
+        let db = create_test_db();
+        // insert some points
+        let mut ids = Vec::new();
+        for i in 0..10 {
+            let i = i as f32;
+            let vector = vec![i, i + 1.0, i + 2.0];
+            let id = db
+                .insert(
+                    vector,
+                    Payload {
+                        content_type: ContentType::Text,
+                        content: format!("Test content {i}"),
+                    },
+                )
+                .unwrap();
+            ids.push(id);
+        }
+
+        // list vectors with limit 5
+        // list the values as well as their length
+        let (vectors, next_offset) = db.list(Uuid::nil(), 5).unwrap().unwrap();
+        assert_eq!(vectors.len(), 5);
+
+        // list next set of vectors
+        // list the values as well as their length
+        let (next_vectors, _) = db.list(next_offset, 5).unwrap().unwrap();
+        assert_eq!(next_vectors.len(), 5);
+    }
+
+    #[test]
+    fn test_build_index() {
+        let db = create_test_db();
+
+        // insert some points
+        for i in 0..10 {
+            let i = i as f32;
+            let vector = vec![i, i + 1.0, i + 2.0];
+            db.insert(
+                vector,
+                Payload {
+                    content_type: ContentType::Text,
+                    content: format!("Test content {i}"),
+                },
+            )
+            .unwrap();
+        }
+
+        // rebuild the index
+        let inserted = db.build_index().unwrap();
+        assert_eq!(inserted, 10);
+    }
 }
