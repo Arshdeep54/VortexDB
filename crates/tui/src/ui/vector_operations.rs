@@ -11,12 +11,9 @@ use crate::app::App;
 
 const VECTOR_OPERATIONS: &[&str] = &[
     "List All Vectors",
-    "Get Vector",
-    "Insert Vector",
     "Delete Vector",
     "Search Similar Vectors",
     "Insert Text Embedding",
-    "Insert Sentence Embedding",
     "Insert Image Embedding",
 ];
 

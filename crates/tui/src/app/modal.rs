@@ -6,7 +6,6 @@ pub struct ModalManager {
     modal_type: Option<ModalType>,
     input_buffer: String,
     secondary_input: String,
-    tertiary_input: String,
     active_field: usize,
     input_mode: bool,
     selected_index: usize,
@@ -20,7 +19,6 @@ impl ModalManager {
             modal_type: None,
             input_buffer: String::new(),
             secondary_input: String::new(),
-            tertiary_input: String::new(),
             active_field: 0,
             input_mode: false,
             selected_index: 0,
@@ -44,10 +42,6 @@ impl ModalManager {
         &self.secondary_input
     }
 
-    pub fn tertiary_input(&self) -> &str {
-        &self.tertiary_input
-    }
-
     pub fn active_field(&self) -> usize {
         self.active_field
     }
@@ -69,36 +63,11 @@ impl ModalManager {
         self.error_message = None;
     }
 
-    pub fn show_get_vector(&mut self) {
-        self.show_modal = true;
-        self.modal_type = Some(ModalType::GetVector);
-        self.input_buffer.clear();
-        self.secondary_input.clear();
-        self.tertiary_input.clear();
-        self.active_field = 0;
-        self.input_mode = true;
-        self.selected_index = 0;
-        self.error_message = None;
-    }
-
-    pub fn show_insert_vector(&mut self) {
-        self.show_modal = true;
-        self.modal_type = Some(ModalType::InsertVector);
-        self.input_buffer.clear();
-        self.secondary_input.clear();
-        self.tertiary_input.clear();
-        self.active_field = 0;
-        self.input_mode = true;
-        self.selected_index = 0;
-        self.error_message = None;
-    }
-
     pub fn show_search_similar_vectors(&mut self) {
         self.show_modal = true;
         self.modal_type = Some(ModalType::SearchSimilarVectors);
         self.input_buffer.clear();
         self.secondary_input.clear();
-        self.tertiary_input.clear();
         self.active_field = 0;
         self.input_mode = true;
         self.selected_index = 0;
@@ -110,7 +79,6 @@ impl ModalManager {
         self.modal_type = Some(ModalType::DeleteVector);
         self.input_buffer.clear();
         self.secondary_input.clear();
-        self.tertiary_input.clear();
         self.active_field = 0;
         self.input_mode = true;
         self.selected_index = 0;
@@ -122,20 +90,7 @@ impl ModalManager {
         self.modal_type = Some(ModalType::TextEmbedding);
         self.input_buffer.clear();
         self.secondary_input.clear();
-        self.tertiary_input.clear();
-        self.active_field = 0;
-        self.input_mode = true;
-        self.selected_index = 0;
-        self.error_message = None;
-    }
-
-    pub fn show_sentence_embedding(&mut self) {
-        self.show_modal = true;
-        self.modal_type = Some(ModalType::SentenceEmbedding);
-        self.input_buffer.clear();
-        self.secondary_input.clear();
-        self.tertiary_input.clear();
-        self.active_field = 0;
+        self.active_field = 1;
         self.input_mode = true;
         self.selected_index = 0;
         self.error_message = None;
@@ -146,8 +101,7 @@ impl ModalManager {
         self.modal_type = Some(ModalType::ImageEmbedding);
         self.input_buffer.clear();
         self.secondary_input.clear();
-        self.tertiary_input.clear();
-        self.active_field = 0;
+        self.active_field = 1;
         self.input_mode = true;
         self.selected_index = 0;
         self.error_message = None;
@@ -173,7 +127,6 @@ impl ModalManager {
         self.input_mode = false;
         self.input_buffer.clear();
         self.secondary_input.clear();
-        self.tertiary_input.clear();
         self.error_message = Some(message.into());
     }
 
@@ -183,7 +136,6 @@ impl ModalManager {
         self.input_mode = false;
         self.input_buffer.clear();
         self.secondary_input.clear();
-        self.tertiary_input.clear();
         self.error_message = Some(message.into());
     }
 
@@ -217,7 +169,6 @@ impl ModalManager {
         self.input_mode = false;
         self.input_buffer.clear();
         self.secondary_input.clear();
-        self.tertiary_input.clear();
         self.active_field = 0;
         self.selected_index = 0;
         self.error_message = Some(message.into());
@@ -228,7 +179,6 @@ impl ModalManager {
         self.modal_type = None;
         self.input_buffer.clear();
         self.secondary_input.clear();
-        self.tertiary_input.clear();
         self.active_field = 0;
         self.input_mode = false;
         self.selected_index = 0;
@@ -243,7 +193,7 @@ impl ModalManager {
         match self.active_field {
             0 => self.input_buffer.push(c),
             1 => self.secondary_input.push(c),
-            _ => self.tertiary_input.push(c),
+            _ => {}
         }
     }
 
@@ -255,14 +205,14 @@ impl ModalManager {
             1 => {
                 self.secondary_input.pop();
             }
-            _ => {
-                self.tertiary_input.pop();
-            }
+            _ => {}
         }
     }
 
     pub fn switch_field(&mut self) {
-        self.active_field = (self.active_field + 1) % 3;
+        if matches!(self.modal_type, Some(ModalType::SearchSimilarVectors)) {
+            self.active_field = (self.active_field + 1) % 2;
+        }
     }
 
     pub fn select_previous(&mut self) {
@@ -294,7 +244,7 @@ impl ModalManager {
     pub fn footer_items(&self) -> Vec<(String, Color)> {
         use ModalType::*;
 
-        match self.modal_type {
+        match self.modal_type.as_ref() {
             Some(CreateDatabase) => vec![
                 ("Enter Create".into(), Color::Green),
                 ("Esc Cancel".into(), Color::Red),
@@ -316,15 +266,7 @@ impl ModalManager {
                 ("Enter Confirm".into(), Color::Green),
                 ("Esc Back".into(), Color::Red),
             ],
-            Some(GetVector) => vec![
-                ("Enter Fetch".into(), Color::Green),
-                ("Esc Close".into(), Color::Red),
-            ],
-            Some(InsertVector) => vec![
-                ("Tab Next".into(), Color::Gray),
-                ("Enter Insert".into(), Color::Green),
-                ("Esc Cancel".into(), Color::Red),
-            ],
+
             Some(SearchSimilarVectors) => vec![
                 ("Tab Next".into(), Color::Gray),
                 ("Enter Search".into(), Color::Green),
@@ -335,17 +277,10 @@ impl ModalManager {
                 ("Esc Cancel".into(), Color::Red),
             ],
             Some(TextEmbedding) => vec![
-                ("Tab Next".into(), Color::Gray),
-                ("Enter Insert".into(), Color::Green),
-                ("Esc Cancel".into(), Color::Red),
-            ],
-            Some(SentenceEmbedding) => vec![
-                ("Tab Next".into(), Color::Gray),
                 ("Enter Insert".into(), Color::Green),
                 ("Esc Cancel".into(), Color::Red),
             ],
             Some(ImageEmbedding) => vec![
-                ("Tab Next".into(), Color::Gray),
                 ("Enter Insert".into(), Color::Green),
                 ("Esc Cancel".into(), Color::Red),
             ],

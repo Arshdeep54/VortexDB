@@ -10,10 +10,12 @@ crossterm = "0.27"
 tokio.workspace = true
 serde.workspace = true
 anyhow.workspace = true
+uuid.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
 core = { path = "../core" }
 storage = { path = "../storage" }
 index = { path = "../index" }
+api = { path = "../api" }
 serde_json.workspace = true
 reqwest = { version = "0.12", features = ["json", "blocking", "multipart"] }
 dotenv = "0.15"

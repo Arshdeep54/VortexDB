@@ -1,9 +1,10 @@
 use super::{App, AppState, ModalType, VectorListItem};
-use core::{DenseVector, Payload, Similarity};
+use core::{ContentType, DenseVector, Payload, Similarity};
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use index::distance;
 use std::path::PathBuf;
 use std::{cmp::Ordering, io};
+use uuid::Uuid;
 
 // Set how many vectors to fetch per function call in list_vectors
 const VECTOR_LIST_LIMIT: usize = 50;
@@ -204,13 +205,10 @@ fn handle_general_keys(app: &mut App, key: KeyEvent) {
                         app.modal.show_error(err.to_string());
                     }
                 }
-                1 => app.modal.show_get_vector(),
-                2 => app.modal.show_insert_vector(),
-                3 => app.modal.show_delete_vector(),
-                4 => app.modal.show_search_similar_vectors(),
-                5 => app.modal.show_text_embedding(),
-                6 => app.modal.show_sentence_embedding(),
-                7 => app.modal.show_image_embedding(),
+                1 => app.modal.show_delete_vector(),
+                2 => app.modal.show_search_similar_vectors(),
+                3 => app.modal.show_text_embedding(),
+                4 => app.modal.show_image_embedding(),
                 _ => {}
             },
             _ => app.next_page(),
@@ -263,70 +261,12 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
                 app.modal.show_confirm_delete_database(name.clone());
             }
         }
-        Some(ModalType::GetVector) => {
-            let input = app.modal.get_input_value();
-            let vector_id_field = &input.parse::<u64>().ok();
-            if vector_id_field.is_none() {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "IDs should be an integer!",
-                ));
-            }
-            let id = vector_id_field.unwrap();
-            show_vector_info(app, id)?;
-        }
-        Some(ModalType::InsertVector) => {
-            // Form fields for insertion: id, vector, payload
-            let id_text = app.modal.get_input_value();
-            let vec_text = app.modal.secondary_input();
-            let payload_text = app.modal.tertiary_input();
 
-            let vector_id_field = id_text.parse::<u64>().ok();
-            if vector_id_field.is_none() {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "IDs should be an integer!",
-                ));
-            }
-            let id = vector_id_field.unwrap();
-
-            match parse_vector(vec_text) {
-                Some(vec) => {
-                    if let Some(storage) = &app.database.storage_engine {
-                        let payload_opt = if payload_text.trim().is_empty() {
-                            None
-                        } else {
-                            Some(Payload {})
-                        };
-                        match storage
-                            .insert_point(id, Some(vec), payload_opt)
-                            .map_err(to_io)
-                        {
-                            Ok(()) => app
-                                .modal
-                                .show_success(format!("Inserted vector with id={id}!")),
-                            Err(e) => app.modal.show_failure(format!("Storage error: {e}")),
-                        }
-                    } else {
-                        app.modal.show_error("No database selected!");
-                    }
-                }
-                None => {
-                    app.modal
-                        .show_failure("Vectors should be a list of floats (e.g. [0.1,0.2,...])!");
-                }
-            }
-        }
         Some(ModalType::DeleteVector) => {
             let input = app.modal.get_input_value();
-            let vector_id_field = &input.parse::<u64>().ok();
-            if vector_id_field.is_none() {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "IDs should be an integer!",
-                ));
-            }
-            let id = vector_id_field.unwrap();
+            let id = Uuid::parse_str(input.trim()).map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidInput, "ID should be a valid UUID v4!")
+            })?;
             if let Some(storage) = &app.database.storage_engine {
                 match storage.contains_point(id).map_err(to_io) {
                     Ok(exists) => {
@@ -348,7 +288,7 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
         }
         Some(ModalType::SearchSimilarVectors) => {
             let k_text = app.modal.get_input_value();
-            let vector_text = app.modal.secondary_input().to_string();
+            let text_raw = app.modal.secondary_input().to_string();
 
             let k = k_text.parse::<usize>().ok().filter(|value| *value > 0);
             if k.is_none() {
@@ -359,19 +299,29 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             }
             let k = k.unwrap();
 
-            let Some(query) = parse_vector(&vector_text) else {
-                app.modal
-                    .show_failure("Query vector should be a list of floats (e.g. [0.1,0.2,...])!");
-                return Ok(());
-            };
+            let trimmed_text = text_raw.trim();
+            if trimmed_text.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Text cannot be empty!",
+                ));
+            }
 
             let Some(storage) = &app.database.storage_engine else {
                 app.modal.show_error("No database selected!");
                 return Ok(());
             };
 
-            let mut all_vectors: Vec<(u64, DenseVector)> = Vec::new();
-            let mut next_offset = Some(0);
+            let query = match app.embeddings.text_embeddings(trimmed_text) {
+                Ok(v) => v,
+                Err(err) => {
+                    app.modal
+                        .show_failure(format!("Failed to generate embedding: {err}"));
+                    return Ok(());
+                }
+            };
+            let mut all_vectors: Vec<(Uuid, DenseVector)> = Vec::new();
+            let mut next_offset = Some(Uuid::nil());
             while let Some(offset) = next_offset {
                 let response = storage
                     .list_vectors(offset, VECTOR_LIST_LIMIT)
@@ -403,7 +353,7 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             }
 
             let query_len = query.len();
-            let mut scored: Vec<(f32, u64, DenseVector)> = Vec::new();
+            let mut scored: Vec<(f32, Uuid, DenseVector)> = Vec::new();
             // currently to avoid panic on dimension mismatch, we skip vectors with different dims
             // TODO: enforce consistent dimensions on insert/search functions
             for (id, vector) in all_vectors.into_iter() {
@@ -451,15 +401,11 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             app.modal.set_selected_index(0, len);
         }
         Some(ModalType::TextEmbedding) => {
-            let id_text = app.modal.get_input_value();
             let text_raw = app.modal.secondary_input().to_string();
-            let payload_text = app.modal.tertiary_input().to_string();
 
             let trimmed_text = text_raw.trim();
 
-            let id = id_text.parse::<u64>().map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidInput, "IDs should be an integer!")
-            })?;
+            let id = Uuid::new_v4();
 
             if trimmed_text.is_empty() {
                 return Err(io::Error::new(
@@ -476,11 +422,10 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             match app.embeddings.text_embeddings(trimmed_text) {
                 Ok(vector) => {
                     let dims = vector.len();
-                    let payload_opt = if payload_text.trim().is_empty() {
-                        None
-                    } else {
-                        Some(Payload {})
-                    };
+                    let payload_opt = Some(Payload {
+                        content_type: ContentType::Text,
+                        content: trimmed_text.to_string(),
+                    });
 
                     match storage
                         .insert_point(id, Some(vector), payload_opt)
@@ -499,65 +444,12 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
                     .show_failure(format!("Failed to generate embedding: {err}")),
             }
         }
-        Some(ModalType::SentenceEmbedding) => {
-            let id_text = app.modal.get_input_value();
-            let sentence_raw = app.modal.secondary_input().to_string();
-            let payload_text = app.modal.tertiary_input().to_string();
-
-            let trimmed_sentence = sentence_raw.trim();
-
-            let id = id_text.parse::<u64>().map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidInput, "IDs should be an integer!")
-            })?;
-
-            if trimmed_sentence.is_empty() {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Sentence cannot be empty!",
-                ));
-            }
-
-            let Some(storage) = &app.database.storage_engine else {
-                app.modal.show_error("No database selected!");
-                return Ok(());
-            };
-
-            match app.embeddings.sentence_embeddings(trimmed_sentence) {
-                Ok(vector) => {
-                    let dims = vector.len();
-                    let payload_opt = if payload_text.trim().is_empty() {
-                        None
-                    } else {
-                        Some(Payload {})
-                    };
-
-                    match storage
-                        .insert_point(id, Some(vector), payload_opt)
-                        .map_err(to_io)
-                    {
-                        Ok(()) => app.modal.show_success(format!(
-                            "Sentence embedding inserted (id={id}, {dims} dims)."
-                        )),
-                        Err(err) => app
-                            .modal
-                            .show_failure(format!("Failed to insert embedding: {err}")),
-                    }
-                }
-                Err(err) => app
-                    .modal
-                    .show_failure(format!("Failed to generate embedding: {err}")),
-            }
-        }
         Some(ModalType::ImageEmbedding) => {
-            let id_text = app.modal.get_input_value();
             let path_raw = app.modal.secondary_input().to_string();
-            let payload_text = app.modal.tertiary_input().to_string();
 
             let trimmed_path = path_raw.trim();
 
-            let id = id_text.parse::<u64>().map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidInput, "IDs should be an integer!")
-            })?;
+            let id = Uuid::new_v4();
 
             if trimmed_path.is_empty() {
                 return Err(io::Error::new(
@@ -586,11 +478,10 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             match app.embeddings.image_embeddings(&path) {
                 Ok(vector) => {
                     let dims = vector.len();
-                    let payload_opt = if payload_text.trim().is_empty() {
-                        None
-                    } else {
-                        Some(Payload {})
-                    };
+                    let payload_opt = Some(Payload {
+                        content_type: ContentType::Image,
+                        content: trimmed_path.to_string(),
+                    });
 
                     match storage
                         .insert_point(id, Some(vector), payload_opt)
@@ -629,19 +520,6 @@ fn restore_delete_database_modal(app: &mut App) {
 
 fn to_io<E: std::fmt::Debug>(e: E) -> io::Error {
     io::Error::other(format!("{e:?}"))
-}
-
-fn parse_vector(input: &str) -> Option<Vec<f32>> {
-    input
-        .trim()
-        .strip_prefix('[')?
-        .strip_suffix(']')?
-        .split(',')
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(|s| s.parse::<f32>())
-        .collect::<Result<Vec<_>, _>>()
-        .ok()
 }
 
 fn execute_selected_db_operation(app: &mut App) -> io::Result<()> {
@@ -685,7 +563,7 @@ fn initialize_vector_listing(app: &mut App) -> io::Result<()> {
     }
 
     app.vector_list_items.clear();
-    app.vector_list_next_offset = Some(0);
+    app.vector_list_next_offset = Some(Uuid::nil());
     app.vector_list_post_restore = false;
     app.vector_list_selected_index = 0;
     app.vector_detail = None;
@@ -785,7 +663,7 @@ fn close_vector_detail_modal(app: &mut App) {
     }
 }
 
-fn show_vector_info(app: &mut App, id: u64) -> io::Result<()> {
+fn show_vector_info(app: &mut App, id: Uuid) -> io::Result<()> {
     let Some(storage) = &app.database.storage_engine else {
         app.modal.show_error("No database selected!");
         return Ok(());

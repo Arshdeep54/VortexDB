@@ -10,6 +10,7 @@ use crate::ui::{db, vector_operations};
 use crossterm::event::Event;
 use std::io;
 use std::path::PathBuf;
+use uuid::Uuid;
 
 pub struct App {
     pub should_quit: bool,
@@ -21,7 +22,7 @@ pub struct App {
     pub embeddings: embeddings::EmbeddingClient,
 
     pub vector_list_items: Vec<VectorListItem>,
-    pub vector_list_next_offset: Option<u64>,
+    pub vector_list_next_offset: Option<Uuid>,
     pub vector_list_post_restore: bool,
     pub vector_list_selected_index: usize,
     pub vector_detail: Option<VectorListItem>,
@@ -140,10 +141,6 @@ impl App {
 
     pub fn secondary_input(&self) -> &str {
         self.modal.secondary_input()
-    }
-
-    pub fn tertiary_input(&self) -> &str {
-        self.modal.tertiary_input()
     }
 
     pub fn active_field(&self) -> usize {

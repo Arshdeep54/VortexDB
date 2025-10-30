@@ -10,7 +10,6 @@ use std::time::Duration;
 pub struct EmbeddingClient {
     client: Client,
     text_url: String,
-    sentence_url: String,
     image_url: String,
 }
 
@@ -63,14 +62,11 @@ impl EmbeddingClient {
             .build()
             .unwrap_or_else(|_| Client::new());
         let text_url = env::var("TEXT_EMBEDDING_URL").expect("TEXT_EMBEDDING_URL must be set");
-        let sentence_url =
-            env::var("SENTENCE_EMBEDDING_URL").expect("SENTENCE_EMBEDDING_URL must be set");
         let image_url = env::var("IMAGE_EMBEDDING_URL").expect("IMAGE_EMBEDDING_URL must be set");
 
         Self {
             client,
             text_url,
-            sentence_url,
             image_url,
         }
     }
@@ -80,19 +76,6 @@ impl EmbeddingClient {
         let response = self.client.post(&self.text_url).json(&payload).send()?;
 
         Self::parse_response::<TextEmbeddingResponse>(response).map(|body| body.result)
-    }
-
-    pub fn sentence_embeddings(&self, sentence: &str) -> Result<Vec<f32>, EmbeddingError> {
-        let payload = serde_json::json!({
-            "text": sentence,
-            "config": {
-                "pooling_strategy": "mean"
-            }
-        });
-
-        let response = self.client.post(&self.sentence_url).json(&payload).send()?;
-
-        Self::parse_response::<SentenceEmbeddingResponse>(response).map(|body| body.vector)
     }
 
     pub fn image_embeddings(&self, path: &Path) -> Result<Vec<f32>, EmbeddingError> {
@@ -137,11 +120,6 @@ impl Default for EmbeddingClient {
 #[derive(Debug, Deserialize)]
 struct TextEmbeddingResponse {
     result: Vec<f32>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SentenceEmbeddingResponse {
-    vector: Vec<f32>,
 }
 
 #[derive(Debug, Deserialize)]
