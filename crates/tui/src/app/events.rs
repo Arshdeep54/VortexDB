@@ -1,9 +1,8 @@
 use super::{App, AppState, ModalType, VectorListItem};
-use core::{ContentType, DenseVector, Payload, Similarity};
+use core::{ContentType, Payload, Similarity};
 use crossterm::event::{Event, KeyCode, KeyEvent};
-use index::distance;
+use std::io;
 use std::path::PathBuf;
-use std::{cmp::Ordering, io};
 use uuid::Uuid;
 
 // Set how many vectors to fetch per function call in list_vectors
@@ -267,20 +266,15 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             let id = Uuid::parse_str(input.trim()).map_err(|_| {
                 io::Error::new(io::ErrorKind::InvalidInput, "ID should be a valid UUID v4!")
             })?;
-            if let Some(storage) = &app.database.storage_engine {
-                match storage.contains_point(id).map_err(to_io) {
-                    Ok(exists) => {
-                        if !exists {
-                            app.modal
-                                .show_failure(format!("Vector with id={id} not found"));
-                        } else {
-                            match storage.delete_point(id).map_err(to_io) {
-                                Ok(()) => app.modal.show_success(format!("Deleted vector id={id}")),
-                                Err(e) => app.modal.show_failure(format!("Storage error: {e}")),
-                            }
-                        }
-                    }
-                    Err(e) => app.modal.show_failure(format!("Storage error: {e}")),
+            if let Some(db) = &app.database.api_db {
+                match db.get(id).map_err(to_io)? {
+                    Some(_) => match db.delete(id).map_err(to_io) {
+                        Ok(()) => app.modal.show_success(format!("Deleted vector id={id}")),
+                        Err(e) => app.modal.show_failure(format!("DB error: {e}")),
+                    },
+                    None => app
+                        .modal
+                        .show_failure(format!("Vector with id={id} not found")),
                 }
             } else {
                 app.modal.show_error("No database selected!");
@@ -307,7 +301,7 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
                 ));
             }
 
-            let Some(storage) = &app.database.storage_engine else {
+            let Some(db) = &app.database.api_db else {
                 app.modal.show_error("No database selected!");
                 return Ok(());
             };
@@ -320,60 +314,8 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
                     return Ok(());
                 }
             };
-            let mut all_vectors: Vec<(Uuid, DenseVector)> = Vec::new();
-            let mut next_offset = Some(Uuid::nil());
-            while let Some(offset) = next_offset {
-                let response = storage
-                    .list_vectors(offset, VECTOR_LIST_LIMIT)
-                    .map_err(to_io)?;
-                let Some((vectors, following_offset)) = response else {
-                    break;
-                };
 
-                if vectors.is_empty() {
-                    break;
-                }
-
-                let batch_len = vectors.len();
-                for (id, vector) in vectors {
-                    all_vectors.push((id, vector));
-                }
-
-                if batch_len == VECTOR_LIST_LIMIT {
-                    next_offset = Some(following_offset);
-                } else {
-                    next_offset = None;
-                }
-            }
-
-            if all_vectors.is_empty() {
-                app.modal
-                    .show_failure("No vectors available in the selected database!");
-                return Ok(());
-            }
-
-            let query_len = query.len();
-            let mut scored: Vec<(f32, Uuid, DenseVector)> = Vec::new();
-            // currently to avoid panic on dimension mismatch, we skip vectors with different dims
-            // TODO: enforce consistent dimensions on insert/search functions
-            for (id, vector) in all_vectors.into_iter() {
-                if vector.len() != query_len {
-                    continue;
-                }
-                // TODO: replace with search function after enforcing dimension consistency
-                let score = distance(vector.clone(), query.clone(), Similarity::Cosine);
-                scored.push((score, id, vector));
-            }
-
-            if scored.is_empty() {
-                app.modal
-                    .show_failure("No vectors with matching dimensions found for the query!");
-                return Ok(());
-            }
-
-            scored.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
-
-            let take = k.min(scored.len());
+            let ids = db.search(query, Similarity::Cosine, k).map_err(to_io)?;
 
             app.vector_list_items.clear();
             app.vector_detail = None;
@@ -381,13 +323,16 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             app.vector_list_post_restore = false;
             app.vector_list_selected_index = 0;
 
-            for (_, id, vector) in scored.into_iter().take(take) {
-                let payload = storage.get_payload(id).map_err(to_io)?;
-                app.vector_list_items.push(VectorListItem {
-                    id,
-                    vector,
-                    payload,
-                });
+            for id in ids.into_iter() {
+                if let Some(point) = db.get(id).map_err(to_io)? {
+                    if let Some(vector) = point.vector {
+                        app.vector_list_items.push(VectorListItem {
+                            id: point.id,
+                            vector,
+                            payload: point.payload,
+                        });
+                    }
+                }
             }
 
             if app.vector_list_items.is_empty() {
@@ -405,8 +350,6 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
 
             let trimmed_text = text_raw.trim();
 
-            let id = Uuid::new_v4();
-
             if trimmed_text.is_empty() {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -414,7 +357,7 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
                 ));
             }
 
-            let Some(storage) = &app.database.storage_engine else {
+            let Some(db) = &app.database.api_db else {
                 app.modal.show_error("No database selected!");
                 return Ok(());
             };
@@ -422,17 +365,14 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             match app.embeddings.text_embeddings(trimmed_text) {
                 Ok(vector) => {
                     let dims = vector.len();
-                    let payload_opt = Some(Payload {
+                    let payload = Payload {
                         content_type: ContentType::Text,
                         content: trimmed_text.to_string(),
-                    });
+                    };
 
-                    match storage
-                        .insert_point(id, Some(vector), payload_opt)
-                        .map_err(to_io)
-                    {
-                        Ok(()) => app.modal.show_success(format!(
-                            "Text embedding inserted (id={id}, {dims} dims)."
+                    match db.insert(vector, payload).map_err(to_io) {
+                        Ok(new_id) => app.modal.show_success(format!(
+                            "Text embedding inserted (id={new_id}, {dims} dims)."
                         )),
                         Err(err) => app
                             .modal
@@ -449,8 +389,6 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
 
             let trimmed_path = path_raw.trim();
 
-            let id = Uuid::new_v4();
-
             if trimmed_path.is_empty() {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -458,7 +396,7 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
                 ));
             }
 
-            let Some(storage) = &app.database.storage_engine else {
+            let Some(db) = &app.database.api_db else {
                 app.modal.show_error("No database selected!");
                 return Ok(());
             };
@@ -478,17 +416,14 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             match app.embeddings.image_embeddings(&path) {
                 Ok(vector) => {
                     let dims = vector.len();
-                    let payload_opt = Some(Payload {
+                    let payload = Payload {
                         content_type: ContentType::Image,
                         content: trimmed_path.to_string(),
-                    });
+                    };
 
-                    match storage
-                        .insert_point(id, Some(vector), payload_opt)
-                        .map_err(to_io)
-                    {
-                        Ok(()) => app.modal.show_success(format!(
-                            "Image embedding inserted (id={id}, {dims} dims)."
+                    match db.insert(vector, payload).map_err(to_io) {
+                        Ok(new_id) => app.modal.show_success(format!(
+                            "Image embedding inserted (id={new_id}, {dims} dims)."
                         )),
                         Err(err) => app
                             .modal
@@ -557,7 +492,7 @@ fn execute_selected_db_operation(app: &mut App) -> io::Result<()> {
 }
 
 fn initialize_vector_listing(app: &mut App) -> io::Result<()> {
-    if app.database.storage_engine.is_none() {
+    if app.database.api_db.is_none() {
         app.modal.show_error("No database selected!");
         return Ok(());
     }
@@ -581,7 +516,7 @@ fn initialize_vector_listing(app: &mut App) -> io::Result<()> {
 }
 
 fn fetch_next_vector_page(app: &mut App) -> io::Result<bool> {
-    let Some(storage) = &app.database.storage_engine else {
+    let Some(db) = &app.database.api_db else {
         app.modal.show_error("No database selected!");
         return Ok(false);
     };
@@ -590,9 +525,7 @@ fn fetch_next_vector_page(app: &mut App) -> io::Result<bool> {
         return Ok(false);
     };
 
-    let response = storage
-        .list_vectors(offset, VECTOR_LIST_LIMIT)
-        .map_err(to_io)?;
+    let response = db.list(offset, VECTOR_LIST_LIMIT).map_err(to_io)?;
 
     let Some((vectors, next_offset)) = response else {
         app.vector_list_next_offset = None;
@@ -607,7 +540,7 @@ fn fetch_next_vector_page(app: &mut App) -> io::Result<bool> {
     let vector_count = vectors.len();
 
     for (id, vector) in vectors.into_iter() {
-        let payload = storage.get_payload(id).map_err(to_io)?;
+        let payload = db.get(id).map_err(to_io)?.and_then(|p| p.payload);
         app.vector_list_items.push(VectorListItem {
             id,
             vector,
@@ -664,25 +597,24 @@ fn close_vector_detail_modal(app: &mut App) {
 }
 
 fn show_vector_info(app: &mut App, id: Uuid) -> io::Result<()> {
-    let Some(storage) = &app.database.storage_engine else {
+    let Some(db) = &app.database.api_db else {
         app.modal.show_error("No database selected!");
         return Ok(());
     };
 
     app.vector_list_post_restore = false;
 
-    let vector_opt = storage.get_vector(id).map_err(to_io)?;
-    let payload_opt = storage.get_payload(id).map_err(to_io)?;
-
-    if vector_opt.is_none() && payload_opt.is_none() {
+    let point_opt = db.get(id).map_err(to_io)?;
+    if point_opt.is_none() {
         app.vector_detail = None;
         app.modal
             .show_failure(format!("Vector with id={id} not found!"));
         return Ok(());
     }
 
-    let vector = vector_opt.unwrap_or_default();
-    let payload = payload_opt;
+    let point = point_opt.unwrap();
+    let vector = point.vector.unwrap_or_default();
+    let payload = point.payload;
 
     app.vector_detail = Some(VectorListItem {
         id,

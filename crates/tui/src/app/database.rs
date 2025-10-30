@@ -1,11 +1,14 @@
+use api::{init_api, DbConfig, VectorDb};
+use index::IndexType;
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
-use storage::{create_storage_engine, StorageEngine, StorageType};
+use storage::{StorageEngine, StorageType};
 
 pub struct DatabaseManager {
     pub current_db_path: Option<PathBuf>,
     pub storage_engine: Option<Arc<dyn StorageEngine>>,
+    pub api_db: Option<VectorDb>,
     pub available_databases: Vec<(String, PathBuf)>,
     pub selected_database: Option<(String, PathBuf)>,
 }
@@ -15,6 +18,7 @@ impl DatabaseManager {
         Self {
             current_db_path: None,
             storage_engine: None,
+            api_db: None,
             available_databases: Vec::new(),
             selected_database: None,
         }
@@ -24,6 +28,7 @@ impl DatabaseManager {
         self.storage_engine = None;
         self.current_db_path = None;
         self.selected_database = None;
+        self.api_db = None;
     }
 
     pub fn create_new_database(&mut self, name: String, path: PathBuf) -> io::Result<()> {
@@ -37,9 +42,16 @@ impl DatabaseManager {
             ));
         }
 
-        match create_storage_engine(StorageType::RocksDb, &path) {
-            Ok(storage) => {
-                self.storage_engine = Some(storage);
+        let cfg = DbConfig {
+            storage_type: StorageType::RocksDb,
+            index_type: IndexType::Flat,
+            data_path: path.clone(),
+            dimension: 512,
+        };
+
+        match init_api(cfg) {
+            Ok(db) => {
+                self.api_db = Some(db);
                 self.current_db_path = Some(path.clone());
                 self.available_databases.push((name.clone(), path.clone()));
                 self.selected_database = Some((name, path));
@@ -61,10 +73,17 @@ impl DatabaseManager {
                 "Database path does not exist",
             ));
         }
-        // Open the selected database
-        match create_storage_engine(StorageType::RocksDb, &path) {
-            Ok(storage) => {
-                self.storage_engine = Some(storage);
+
+        let cfg = DbConfig {
+            storage_type: StorageType::RocksDb,
+            index_type: IndexType::Flat,
+            data_path: path.clone(),
+            dimension: 512,
+        };
+
+        match init_api(cfg) {
+            Ok(db) => {
+                self.api_db = Some(db);
                 self.current_db_path = Some(path.clone());
                 self.selected_database = Some((name, path));
                 Ok(())
@@ -82,6 +101,7 @@ impl DatabaseManager {
             if current_path == path {
                 self.storage_engine = None;
                 self.current_db_path = None;
+                self.api_db = None;
             }
         }
 
