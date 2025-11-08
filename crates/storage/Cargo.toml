@@ -8,6 +8,6 @@ bincode = "1.3.3"
 rocksdb = "0.21.0"
 uuid.workspace = true
 
-core = { path = "../core" }
+defs = { path = "../defs" }
 index = { path = "../index" }
 tempfile = "3.23.0"

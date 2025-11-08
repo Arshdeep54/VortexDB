@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use uuid::Uuid;
 
 pub type PointId = Uuid;
@@ -49,6 +50,35 @@ pub enum Similarity {
     Hamming,
     Cosine,
 }
+
+// Struct which stores the distance between a vector and query vector and implements ordering traits
+#[derive(Copy, Clone)]
+pub struct DistanceOrderedVector<'q> {
+    // 'q : lifetime of query vector
+    pub distance: f32,
+    pub query_vector: &'q DenseVector,
+    pub point_id: Option<PointId>,
+}
+
+impl<'q> Ord for DistanceOrderedVector<'q> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.distance.total_cmp(&other.distance)
+    }
+}
+
+impl<'q> PartialOrd for DistanceOrderedVector<'q> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<'q> PartialEq for DistanceOrderedVector<'q> {
+    fn eq(&self, other: &Self) -> bool {
+        self.distance == other.distance
+    }
+}
+
+impl<'q> Eq for DistanceOrderedVector<'q> {}
 
 // Query Vector. Basically the type of query results that can be generated. Not implementing this but referencing here for furture reference
 // #[derive(Debug, Clone)]
