@@ -161,7 +161,7 @@ impl StorageEngine for RocksDbStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::ContentType;
+    use defs::ContentType;
     use uuid::Uuid;
 
     use tempfile::tempdir;

@@ -158,7 +158,7 @@ mod tests {
     // TODO: Add more exhaustive tests
 
     use super::*;
-    use core::ContentType;
+    use defs::ContentType;
     use tempfile::tempdir;
 
     // Helper function to create a test database

@@ -1,4 +1,4 @@
-use core::{DenseVector, Payload};
+use defs::{DenseVector, Payload};
 use uuid::Uuid;
 
 #[derive(Debug, Default, Clone, PartialEq)]

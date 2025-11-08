@@ -12,7 +12,7 @@ serde.workspace = true
 anyhow.workspace = true
 uuid.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
-core = { path = "../defs" }
+defs = { path = "../defs" }
 storage = { path = "../storage" }
 index = { path = "../index" }
 api = { path = "../api" }

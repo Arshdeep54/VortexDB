@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 
-core = { path = "../defs" }
+defs = { path = "../defs" }
 uuid.workspace = true

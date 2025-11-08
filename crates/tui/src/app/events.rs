@@ -1,6 +1,6 @@
 use super::{App, AppState, ModalType, VectorListItem};
-use core::{ContentType, Payload, Similarity};
 use crossterm::event::{Event, KeyCode, KeyEvent};
+use defs::{ContentType, Payload, Similarity};
 use std::io;
 use std::path::PathBuf;
 use uuid::Uuid;
