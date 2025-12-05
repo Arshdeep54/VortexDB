@@ -30,6 +30,9 @@ jobs:
       - name: Check Code Formatting
         run: cargo fmt --all -- --check
 
+      - name: Install protoc for gRPC server
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler 
+
       - name: Run Clippy (Linter)
         run: cargo clippy --all-targets --all-features -- -D warnings
 
