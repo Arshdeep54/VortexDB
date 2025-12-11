@@ -22,8 +22,7 @@ impl Config {
         let db_path = PathBuf::from(db_path_str);
 
         // Load vector dimension
-        let vector_dimension_str =
-            env::var("VECTOR_DIMENSION").unwrap_or_else(|_| "3".to_string());
+        let vector_dimension_str = env::var("VECTOR_DIMENSION").unwrap_or_else(|_| "3".to_string());
         let vector_dimension = vector_dimension_str
             .parse()
             .expect("Failed to parse VECTOR_DIMENSION");

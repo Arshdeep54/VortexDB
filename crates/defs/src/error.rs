@@ -10,7 +10,7 @@ pub enum DbError {
 }
 
 #[derive(Debug)]
-pub enum ServerError{
+pub enum ServerError {
     Bind(io::Error),
     Serve(io::Error),
 }

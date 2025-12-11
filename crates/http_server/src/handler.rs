@@ -1,5 +1,9 @@
-use axum::{extract::{State,Path}, http::StatusCode, Json};
-use defs::{DenseVector, Payload, PointId, Point, Similarity};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
+use defs::{DenseVector, Payload, Point, PointId, Similarity};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
@@ -20,7 +24,10 @@ pub async fn root_handler() -> &'static str {
     "Vector Database server is running!"
 }
 
-pub async fn insert_point_handler(State(app_state): State<AppState>, Json(request): Json<InsertRequest>, ) -> Result<(StatusCode, Json<InsertResponse>), (StatusCode, String)> {
+pub async fn insert_point_handler(
+    State(app_state): State<AppState>,
+    Json(request): Json<InsertRequest>,
+) -> Result<(StatusCode, Json<InsertResponse>), (StatusCode, String)> {
     match app_state.db.insert(request.vector, request.payload) {
         Ok(point_id) => {
             let response = InsertResponse { point_id };
@@ -42,13 +49,9 @@ pub async fn get_point_handler(
     State(app_state): State<AppState>,
 ) -> Result<Json<Point>, (StatusCode, String)> {
     match app_state.db.get(point_id) {
-        Ok(Some(point)) => {
-            Ok(Json(point))
-        }
-        Ok(None) => {
-            Err((StatusCode::NOT_FOUND, "Point not found".to_string()))
-        }
-        
+        Ok(Some(point)) => Ok(Json(point)),
+        Ok(None) => Err((StatusCode::NOT_FOUND, "Point not found".to_string())),
+
         Err(e) => {
             error!("Failed to get point {}: {:?}", point_id, e);
             Err((
@@ -64,10 +67,8 @@ pub async fn delete_point_handler(
     State(app_state): State<AppState>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     match app_state.db.delete(point_id) {
-        Ok(_) => {
-            Ok(StatusCode::NO_CONTENT)
-        }
-        
+        Ok(_) => Ok(StatusCode::NO_CONTENT),
+
         Err(e) => {
             error!("Failed to delete point {}: {:?}", point_id, e);
             Err((
@@ -85,7 +86,7 @@ pub struct SearchRequest {
     pub limit: usize,
 }
 
-#[derive(Serialize,Deserialize,Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SearchResponse {
     pub results: Vec<PointId>,
 }
