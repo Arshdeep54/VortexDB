@@ -15,6 +15,11 @@ pub trait StorageEngine {
     fn get_payload(&self, id: PointId) -> Result<Option<Payload>, DbError>;
     fn delete_point(&self, id: PointId) -> Result<(), DbError>;
     fn contains_point(&self, id: PointId) -> Result<bool, DbError>;
+    fn list_vectors(
+        &self,
+        offset: PointId,
+        limit: usize,
+    ) -> Result<Option<(Vec<(PointId, DenseVector)>, PointId)>, DbError>;
 }
 
 pub mod in_memory;
