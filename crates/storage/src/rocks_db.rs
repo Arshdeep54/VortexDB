@@ -60,7 +60,7 @@ impl StorageEngine for RocksDbStorage {
             payload,
         };
         let value = serialize(&point).map_err(|e| DbError::SerializationError(e.to_string()))?;
-        match self.db.put(key, value.as_ref() as &[u8]) {
+        match self.db.put(key.as_bytes(), value.as_slice()) {
             Ok(_) => Ok(()),
             Err(e) => Err(DbError::StorageError(e.into_string())),
         }
@@ -121,11 +121,48 @@ impl StorageEngine for RocksDbStorage {
 
         Ok(value.vector)
     }
+
+    fn list_vectors(
+        &self,
+        offset: PointId,
+        limit: usize,
+    ) -> Result<Option<(Vec<(PointId, DenseVector)>, PointId)>, DbError> {
+        if limit < 1 {
+            return Ok(None);
+        }
+
+        let mut result = Vec::with_capacity(limit);
+        let iter = self.db.iterator(rocksdb::IteratorMode::From(
+            offset.to_string().as_bytes(),
+            rocksdb::Direction::Forward,
+        ));
+        let mut last_id = offset;
+
+        for item in iter {
+            let (_, v) = item.map_err(|e| DbError::StorageError(e.into_string()))?;
+            let point: Point = deserialize(&v).map_err(|_| DbError::DeserializationError)?;
+
+            if point.id <= offset {
+                continue;
+            }
+
+            if let Some(vec) = point.vector {
+                last_id = point.id;
+                result.push((point.id, vec));
+                if result.len() == limit {
+                    break;
+                }
+            }
+        }
+        Ok(Some((result, last_id)))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use defs::ContentType;
+    use uuid::Uuid;
 
     use tempfile::tempdir;
 
@@ -147,9 +184,12 @@ mod tests {
     #[test]
     fn test_insert_and_get_vector() {
         let (db, path) = create_test_db();
-        let id = 1;
+        let id = Uuid::new_v4();
         let vector = Some(vec![0.1, 0.2, 0.3]);
-        let payload = None;
+        let payload = Some(Payload {
+            content_type: ContentType::Text,
+            content: "Test".to_string(),
+        });
 
         assert!(db.insert_point(id, vector.clone(), payload).is_ok());
         let result = db.get_vector(id).unwrap();
@@ -161,13 +201,21 @@ mod tests {
     #[test]
     fn test_insert_and_get_payload() {
         let (db, path) = create_test_db();
-        let id = 2;
-        let payload = Some(Payload {});
+        let id = Uuid::new_v4();
+        let payload = Some(Payload {
+            content_type: ContentType::Text,
+            content: "Test".to_string(),
+        });
         let vector = None;
 
+        // Move payload into insert_point and recreate expected for comparison
         assert!(db.insert_point(id, vector, payload).is_ok());
         let result = db.get_payload(id).unwrap();
-        assert_eq!(result, payload);
+        let expected = Some(Payload {
+            content_type: ContentType::Text,
+            content: "Test".to_string(),
+        });
+        assert_eq!(result, expected);
 
         std::fs::remove_dir_all(path).unwrap_or_default();
     }
@@ -175,12 +223,16 @@ mod tests {
     #[test]
     fn test_contains_point() {
         let (db, path) = create_test_db();
-        let id = 3;
+        let id = Uuid::new_v4();
+        let payload = Some(Payload {
+            content_type: ContentType::Text,
+            content: "Test".to_string(),
+        });
 
         assert!(!db.contains_point(id).unwrap());
 
         let vector = Some(vec![0.4, 0.5, 0.6]);
-        db.insert_point(id, vector, None).unwrap();
+        db.insert_point(id, vector, payload).unwrap();
 
         assert!(db.contains_point(id).unwrap());
 
@@ -190,12 +242,15 @@ mod tests {
     #[test]
     fn test_delete_point() {
         let (db, path) = create_test_db();
-        let id = 4;
+        let id = Uuid::new_v4();
+        let payload = Some(Payload {
+            content_type: ContentType::Text,
+            content: "Test".to_string(),
+        });
 
         let vector = vec![0.7, 0.8, 0.9];
-        let payload = Payload {};
 
-        db.insert_point(id, Some(vector), Some(payload)).unwrap();
+        db.insert_point(id, Some(vector), payload).unwrap();
 
         assert!(db.contains_point(id).unwrap());
 
@@ -211,7 +266,7 @@ mod tests {
     #[test]
     fn test_get_nonexistent_vector() {
         let (db, path) = create_test_db();
-        let id = 999;
+        let id = Uuid::new_v4();
 
         assert_eq!(db.get_vector(id).unwrap(), None);
 
@@ -221,7 +276,7 @@ mod tests {
     #[test]
     fn test_get_nonexistent_payload() {
         let (db, path) = create_test_db();
-        let id = 999;
+        let id = Uuid::new_v4();
 
         assert_eq!(db.get_payload(id).unwrap(), None);
 

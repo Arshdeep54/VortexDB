@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 
 defs = { path = "../defs" }
+uuid.workspace = true

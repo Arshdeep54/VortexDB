@@ -2,7 +2,7 @@ use defs::{DbError, IndexedVector, Similarity};
 
 use defs::{DenseVector, Payload, Point, PointId};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+// use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use index::flat::FlatIndex;
@@ -10,10 +10,16 @@ use index::{IndexType, VectorIndex};
 use storage::rocks_db::RocksDbStorage;
 use storage::{StorageEngine, StorageType};
 
-static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+use uuid::Uuid;
 
-fn generate_point_id() -> u64 {
-    NEXT_ID.fetch_add(1, Ordering::Relaxed)
+// static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+
+// fn generate_point_id() -> u64 {
+//     NEXT_ID.fetch_add(1, Ordering::Relaxed)
+// }
+
+fn generate_point_id() -> PointId {
+    Uuid::new_v4()
 }
 
 pub struct VectorDb {
@@ -82,6 +88,39 @@ impl VectorDb {
 
         Ok(vectors)
     }
+
+    pub fn list(
+        &self,
+        offset: PointId,
+        limit: usize,
+    ) -> Result<Option<(Vec<(PointId, DenseVector)>, PointId)>, DbError> {
+        self.storage.list_vectors(offset, limit)
+    }
+
+    // populates the current index with vectors from the storage
+    pub fn build_index(&self) -> Result<usize, DbError> {
+        // start from the minimal UUID and fetch in bounded batches and insert
+        let mut offset = Uuid::nil();
+        let page_size: usize = 1000;
+        let mut inserted: usize = 0;
+
+        let mut index = self.index.write().map_err(|_| DbError::LockError)?;
+
+        while let Some((batch, next_offset)) = self.storage.list_vectors(offset, page_size)? {
+            if batch.is_empty() || next_offset == offset {
+                break;
+            }
+
+            for (id, vector) in batch {
+                index.insert(IndexedVector { id, vector })?;
+                inserted += 1;
+            }
+
+            offset = next_offset;
+        }
+
+        Ok(inserted)
+    }
 }
 
 pub struct DbConfig {
@@ -107,6 +146,9 @@ pub fn init_api(config: DbConfig) -> Result<VectorDb, DbError> {
     // Init the db
     let db = VectorDb::_new(storage, index);
 
+    // populate the current index with vectors from the storage
+    db.build_index()?;
+
     Ok(db)
 }
 
@@ -116,6 +158,7 @@ mod tests {
     // TODO: Add more exhaustive tests
 
     use super::*;
+    use defs::ContentType;
     use tempfile::tempdir;
 
     // Helper function to create a test database
@@ -134,24 +177,35 @@ mod tests {
     fn test_insert_and_get() {
         let db = create_test_db();
         let vector = vec![1.0, 2.0, 3.0];
-        let payload = Payload {};
+        let payload = Payload {
+            content_type: ContentType::Text,
+            content: "Test content".to_string(),
+        };
 
         // Test insert
-        let id = db.insert(vector.clone(), payload).unwrap();
-        assert!(id > 0);
+        let id = db.insert(vector.clone(), payload.clone()).unwrap();
+        assert!(id != Uuid::nil());
 
         // Test get
         let point = db.get(id).unwrap().unwrap();
         assert_eq!(point.id, id);
         assert_eq!(point.vector.as_ref().unwrap(), &vector);
         assert_eq!(point.payload.as_ref().unwrap(), &payload);
+        assert_eq!(
+            point.payload.as_ref().unwrap().content_type,
+            ContentType::Text
+        );
+        assert_eq!(point.payload.as_ref().unwrap().content, "Test content");
     }
 
     #[test]
     fn test_delete() {
         let db = create_test_db();
         let vector = vec![1.0, 2.0, 3.0];
-        let payload = Payload {};
+        let payload = Payload {
+            content_type: ContentType::Text,
+            content: "Test content".to_string(),
+        };
 
         // Insert a point
         let id = db.insert(vector, payload).unwrap();
@@ -174,7 +228,11 @@ mod tests {
 
         let mut ids = Vec::new();
         for vector in vectors {
-            let id = db.insert(vector, Payload {}).unwrap();
+            let payload = Payload {
+                content_type: ContentType::Text,
+                content: format!("Test content {vector:?}"),
+            };
+            let id = db.insert(vector, payload).unwrap();
             ids.push(id);
         }
 
@@ -194,7 +252,15 @@ mod tests {
         let mut ids = Vec::new();
         for i in 0..5 {
             let vector = vec![i as f32, 0.0, 0.0];
-            let id = db.insert(vector, Payload {}).unwrap();
+            let id = db
+                .insert(
+                    vector,
+                    Payload {
+                        content_type: ContentType::Text,
+                        content: format!("Test content {i}"),
+                    },
+                )
+                .unwrap();
             ids.push(id);
         }
 
@@ -210,10 +276,64 @@ mod tests {
         let db = create_test_db();
 
         // Get non-existent point
-        assert!(db.get(999).unwrap().is_none());
+        assert!(db.get(Uuid::new_v4()).unwrap().is_none());
 
         let query = vec![1.0, 2.0, 3.0];
         let results = db.search(query, Similarity::Cosine, 10).unwrap();
         assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn test_list_vectors() {
+        let db = create_test_db();
+        // insert some points
+        let mut ids = Vec::new();
+        for i in 0..10 {
+            let i = i as f32;
+            let vector = vec![i, i + 1.0, i + 2.0];
+            let id = db
+                .insert(
+                    vector,
+                    Payload {
+                        content_type: ContentType::Text,
+                        content: format!("Test content {i}"),
+                    },
+                )
+                .unwrap();
+            ids.push(id);
+        }
+
+        // list vectors with limit 5
+        // list the values as well as their length
+        let (vectors, next_offset) = db.list(Uuid::nil(), 5).unwrap().unwrap();
+        assert_eq!(vectors.len(), 5);
+
+        // list next set of vectors
+        // list the values as well as their length
+        let (next_vectors, _) = db.list(next_offset, 5).unwrap().unwrap();
+        assert_eq!(next_vectors.len(), 5);
+    }
+
+    #[test]
+    fn test_build_index() {
+        let db = create_test_db();
+
+        // insert some points
+        for i in 0..10 {
+            let i = i as f32;
+            let vector = vec![i, i + 1.0, i + 2.0];
+            db.insert(
+                vector,
+                Payload {
+                    content_type: ContentType::Text,
+                    content: format!("Test content {i}"),
+                },
+            )
+            .unwrap();
+        }
+
+        // rebuild the index
+        let inserted = db.build_index().unwrap();
+        assert_eq!(inserted, 10);
     }
 }
