@@ -7,4 +7,5 @@ pub enum DbError {
     IndexError(String),
     LockError,
     IndexInitError, //TODO: Change this
+    UnsupportedSimilarity,
 }

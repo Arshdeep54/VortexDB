@@ -2,7 +2,7 @@ use crate::{distance, VectorIndex};
 use defs::{DbError, DenseVector, IndexedVector, PointId, Similarity};
 use std::{
     cmp::Ordering,
-    collections::{BinaryHeap, HashMap},
+    collections::{BinaryHeap, HashSet},
     vec,
 };
 use uuid::Uuid;
@@ -10,8 +10,8 @@ use uuid::Uuid;
 pub struct KDTree {
     dim: usize,
     root: Option<Box<KDTreeNode>>,
-    // An in memory point map for lookup during delete
-    point_map: HashMap<PointId, DenseVector>,
+    // In memory point ids, to check existence before O(n) deletion logic
+    point_ids: HashSet<PointId>,
 }
 
 // the node which will be the part of the KD Tree
@@ -52,7 +52,7 @@ impl KDTree {
         KDTree {
             dim,
             root: None,
-            point_map: HashMap::new(),
+            point_ids: HashSet::new(),
         }
     }
 
@@ -63,15 +63,16 @@ impl KDTree {
         } else {
             let dim = vectors[0].vector.len();
 
-            let mut point_map = HashMap::with_capacity(vectors.len());
-            for iv in vectors.iter() {
-                point_map.insert(iv.id, iv.vector.clone());
+            let mut point_ids = HashSet::with_capacity(vectors.len());
+            for indexed_vector in vectors.iter() {
+                point_ids.insert(indexed_vector.id);
             }
+
             let root_node = Self::build_recursive(&mut vectors, 0, dim);
             Ok(KDTree {
                 dim,
                 root: Some(root_node),
-                point_map,
+                point_ids,
             })
         }
     }
@@ -127,6 +128,9 @@ impl KDTree {
     }
 
     pub fn insert_point(&mut self, new_vector: IndexedVector) {
+        // Add to point_ids
+        self.point_ids.insert(new_vector.id);
+
         // use a traverse function to get the final leaf where this belongs
         if self.root.is_none() {
             self.root = Some(Box::new(KDTreeNode {
@@ -166,83 +170,31 @@ impl KDTree {
             left: None,
             right: None,
             is_deleted: false,
-        }))
+        }));
     }
 
-    // Deletes the point by first finding the corresponding node using DFS and then deleting
     // Returns true if point found and deleted, else false
-    // First make a lookup of vector from map, then traverse the tree to obtain the point and mark it as deleted
-    pub fn delete_point(&mut self, point_id: PointId) -> bool {
-        if let Some(vector_to_delete) = self.point_map.get(&point_id) {
-            let found_and_deleted = Self::find_and_mark_recursive(
-                &mut self.root,
-                vector_to_delete,
-                point_id,
-                0,
-                self.dim,
-            );
-
-            if found_and_deleted {
-                self.point_map.remove(&point_id);
+    pub fn delete_point(&mut self, point_id: &PointId) -> bool {
+        if self.point_ids.contains(point_id) {
+            let deleted = Self::find_and_mark_deleted(&mut self.root, *point_id);
+            if deleted {
+                self.point_ids.remove(point_id);
             }
-
-            return found_and_deleted;
+            return deleted;
         }
         false
     }
 
-    // Recursively finds and marks a node as deleted,
-    fn find_and_mark_recursive(
-        node_opt: &mut Option<Box<KDTreeNode>>,
-        target_vector: &DenseVector,
-        target_id: PointId,
-        depth: usize,
-        dim: usize,
-    ) -> bool {
+    fn find_and_mark_deleted(node_opt: &mut Option<Box<KDTreeNode>>, target_id: PointId) -> bool {
         if let Some(node) = node_opt {
             if node.indexed_vector.id == target_id {
                 node.is_deleted = true;
                 return true;
             }
 
-            let axis = depth % dim;
-            let target_val = target_vector[axis];
-            let node_val = node.indexed_vector.vector[axis];
-
-            if target_val < node_val {
-                Self::find_and_mark_recursive(
-                    &mut node.left,
-                    target_vector,
-                    target_id,
-                    depth + 1,
-                    dim,
-                )
-            } else if target_val > node_val {
-                Self::find_and_mark_recursive(
-                    &mut node.right,
-                    target_vector,
-                    target_id,
-                    depth + 1,
-                    dim,
-                )
-            } else {
-                // Need to check both right and left nodes in this case
-                let left_found = Self::find_and_mark_recursive(
-                    &mut node.left,
-                    target_vector,
-                    target_id,
-                    depth + 1,
-                    dim,
-                );
-                let right_found = Self::find_and_mark_recursive(
-                    &mut node.right,
-                    target_vector,
-                    target_id,
-                    depth + 1,
-                    dim,
-                );
-                left_found || right_found
-            }
+            // Search left first then right
+            Self::find_and_mark_deleted(&mut node.left, target_id)
+                || Self::find_and_mark_deleted(&mut node.right, target_id)
         } else {
             false
         }
@@ -298,11 +250,11 @@ impl KDTree {
             };
 
             // Recurse on near side first
-            self.search_recursive(&near_side, query_vector, k, heap, depth + 1, dist_type);
+            self.search_recursive(near_side, query_vector, k, heap, depth + 1, dist_type);
 
             // Process the current node
             if !node.is_deleted {
-                //TODO: Use square distance in distance, why is there overhead of square
+                // TODO: Possible overhead, here heap stores sqrt euclidean distance, we can eliminate that by storing squared distances in case of euclidean
                 let distance = distance(query_vector, &node.indexed_vector.vector, dist_type);
                 if heap.len() < k {
                     heap.push(Neighbor {
@@ -319,11 +271,11 @@ impl KDTree {
             }
 
             // Pruning on the farther side to check if there are better candidates
-            //TODO: Change this when implementing square distance
+            let axis_diff = query_vector[axis] - node.indexed_vector.vector[axis];
             let dist_to_plane = match dist_type {
-                Similarity::Euclidean => query_vector[axis] - node.indexed_vector.vector[axis],
-                Similarity::Manhattan => 1.0,
-                _ => unreachable!(),
+                Similarity::Euclidean => axis_diff.abs(),
+                Similarity::Manhattan => axis_diff.abs(),
+                _ => 0.0, // Cosine/Hamming - no effective pruning, always search
             };
 
             if heap.len() < k || dist_to_plane < heap.peek().unwrap().distance {
@@ -340,7 +292,7 @@ impl VectorIndex for KDTree {
     }
 
     fn delete(&mut self, point_id: PointId) -> Result<bool, DbError> {
-        Ok(self.delete_point(point_id))
+        Ok(self.delete_point(&point_id))
     }
 
     fn search(
@@ -350,9 +302,10 @@ impl VectorIndex for KDTree {
         k: usize,
     ) -> Result<Vec<PointId>, DbError> {
         if matches!(similarity, Similarity::Cosine | Similarity::Hamming) {
-            panic!("Cosine and hamming are not suitable similariyt metric when using a KDTree")
+            return Err(DbError::UnsupportedSimilarity);
         }
 
-        Ok(vec![])
+        let results = self.search_top_k(query_vector, k, similarity);
+        Ok(results.into_iter().map(|(id, _)| id).collect())
     }
 }
