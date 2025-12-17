@@ -1,11 +1,11 @@
+use crate::{distance, VectorIndex};
 use defs::{DbError, DenseVector, IndexedVector, PointId, Similarity};
 use std::{
     cmp::Ordering,
     collections::{BinaryHeap, HashMap},
     vec,
 };
-
-use crate::{distance, VectorIndex};
+use uuid::Uuid;
 
 pub struct KDTree {
     dim: usize,
@@ -47,10 +47,6 @@ impl PartialOrd for Neighbor {
 }
 
 impl KDTree {
-    pub fn mock() {
-        //here is the mock code
-    }
-
     // Build an empty index with no points
     pub fn build_empty(dim: usize) -> Self {
         KDTree {
@@ -101,7 +97,7 @@ impl KDTree {
 
         // Using swap so that we don't need to clone the whole vector
         let mut median_vec = IndexedVector {
-            id: 0,
+            id: Uuid::new_v4(),
             vector: vec![],
         }; // dummy
         std::mem::swap(&mut vectors[mid_idx], &mut median_vec);
