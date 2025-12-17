@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use uuid::Uuid;
 
-pub type PointId = u64;
+pub type PointId = Uuid;
 
 /// Type of vector element.
 pub type Element = f32;
@@ -17,8 +18,15 @@ pub enum StoredVector {
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub enum ContentType {
+    Text,
+    Image,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Payload {
-    // Define here how payload is managed
+    pub content_type: ContentType,
+    pub content: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

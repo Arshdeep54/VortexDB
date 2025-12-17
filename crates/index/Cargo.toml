@@ -9,3 +9,4 @@ edition = "2021"
 ordered-float = "5.0.0"
 
 defs = { path = "../defs" }
+uuid.workspace = true

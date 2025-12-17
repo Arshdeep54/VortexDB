@@ -38,4 +38,11 @@ impl StorageEngine for MemoryStorage {
     fn get_vector(&self, _id: PointId) -> Result<Option<DenseVector>, DbError> {
         Ok(None)
     }
+    fn list_vectors(
+        &self,
+        _offset: PointId,
+        _limit: usize,
+    ) -> Result<Option<(Vec<(PointId, DenseVector)>, PointId)>, DbError> {
+        Ok(None)
+    }
 }
