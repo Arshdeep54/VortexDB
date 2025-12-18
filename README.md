@@ -1,6 +1,3 @@
-Add your file path to the env file to run the project
+# VortexDB
 
-To-Do: <br/>
-[x] Make test cases for KD-Trees <br/>
-[x] Integration of KD trees into Database <br/>
-[x] Debugging and testing <br/>
+A high-performance vector database built from scratch in Rust. VortexDB is designed for efficient similarity search and can be used as the backbone for AI-powered applications. Using RocksDB for persistent storage.
