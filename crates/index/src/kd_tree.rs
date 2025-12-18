@@ -12,15 +12,19 @@ pub struct KDTree {
     root: Option<Box<KDTreeNode>>,
     // In memory point ids, to check existence before O(n) deletion logic
     point_ids: HashSet<PointId>,
+    // Rebuild tracking
+    total_nodes: usize,
+    deleted_count: usize,
 }
 
 // the node which will be the part of the KD Tree
 pub struct KDTreeNode {
     indexed_vector: IndexedVector,
-    split_dim: usize,
     left: Option<Box<KDTreeNode>>,
     right: Option<Box<KDTreeNode>>,
     is_deleted: bool,
+
+    subtree_size: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,12 +51,18 @@ impl PartialOrd for Neighbor {
 }
 
 impl KDTree {
+    // Rebuild threshold
+    const BALANCE_THRESHOLD: f32 = 0.7;
+    const DELETE_REBUILD_RATIO: f32 = 0.25;
+
     // Build an empty index with no points
     pub fn build_empty(dim: usize) -> Self {
         KDTree {
             dim,
             root: None,
             point_ids: HashSet::new(),
+            total_nodes: 0,
+            deleted_count: 0,
         }
     }
 
@@ -73,6 +83,8 @@ impl KDTree {
                 dim,
                 root: Some(root_node),
                 point_ids,
+                total_nodes: vectors.len(),
+                deleted_count: 0,
             })
         }
     }
@@ -120,41 +132,50 @@ impl KDTree {
 
         Box::new(KDTreeNode {
             indexed_vector: median_vec,
-            split_dim: axis,
             left,
             right,
             is_deleted: false,
+            subtree_size: vectors.len(),
         })
     }
 
     pub fn insert_point(&mut self, new_vector: IndexedVector) {
         // Add to point_ids
         self.point_ids.insert(new_vector.id);
+        self.total_nodes += 1;
 
         // use a traverse function to get the final leaf where this belongs
         if self.root.is_none() {
             self.root = Some(Box::new(KDTreeNode {
                 indexed_vector: new_vector,
-                split_dim: 0,
                 left: None,
                 right: None,
                 is_deleted: false,
+                subtree_size: 1,
             }));
             return;
         }
 
+        let mut path: Vec<(usize, bool)> = Vec::new();
+        let dim = self.dim;
+
         let mut current_link = &mut self.root;
         let mut depth = 0;
-        let dim = self.dim;
+        // let dim = self.dim;
 
         while let Some(ref mut node_box) = current_link {
             let axis = depth % dim;
             let current_node = node_box.as_mut();
 
+            current_node.subtree_size += 1;
+
             let va = new_vector.vector[axis];
             let vb = current_node.indexed_vector.vector[axis];
 
-            if va <= vb {
+            let go_left = va <= vb;
+            path.push((depth, go_left));
+
+            if go_left {
                 current_link = &mut current_node.left;
             } else {
                 current_link = &mut current_node.right;
@@ -163,14 +184,144 @@ impl KDTree {
         }
 
         // Assign the new node to current link which is &mut Option<Box<KDTreeNode>>
-        let axis = depth % dim;
-        *current_link = Some(Box::new(KDTreeNode {
+        let new_node = Box::new(KDTreeNode {
             indexed_vector: new_vector,
-            split_dim: axis,
             left: None,
             right: None,
             is_deleted: false,
-        }));
+            subtree_size: 1,
+        });
+
+        *current_link = Some(new_node);
+
+        self.check_and_rebalance(&path);
+    }
+
+    // Rebuild helper methods
+    fn is_unbalanced(node: &KDTreeNode) -> bool {
+        let left_size = node.left.as_ref().map_or(0, |n| n.subtree_size);
+        let right_size = node.right.as_ref().map_or(0, |n| n.subtree_size);
+        let max_child = left_size.max(right_size);
+
+        max_child as f32 > Self::BALANCE_THRESHOLD * node.subtree_size as f32
+    }
+
+    fn collect_recursive(node: KDTreeNode, result: &mut Vec<IndexedVector>) {
+        if !node.is_deleted {
+            result.push(node.indexed_vector);
+        }
+        if let Some(left) = node.left {
+            Self::collect_recursive(*left, result);
+        }
+        if let Some(right) = node.right {
+            Self::collect_recursive(*right, result);
+        }
+    }
+
+    fn collect_active_vectors(node: KDTreeNode) -> Vec<IndexedVector> {
+        let mut result = Vec::with_capacity(node.subtree_size);
+        Self::collect_recursive(node, &mut result);
+        result
+    }
+
+    fn rebuild_at_depth(&mut self, path: &[(usize, bool)], target_depth: usize) {
+        let dim = self.dim;
+
+        // Navigate to parent of target node
+        if target_depth == 0 {
+            // Rebuild root
+            if let Some(root) = self.root.take() {
+                let old_size = root.subtree_size;
+                let mut vectors = Self::collect_active_vectors(*root);
+                let new_size = vectors.len();
+                if !vectors.is_empty() {
+                    self.root = Some(Self::build_recursive(&mut vectors, 0, dim));
+                }
+                // Update global counts as deleted nodes were purged
+                self.total_nodes -= old_size - new_size;
+                self.deleted_count = 0;
+            }
+        } else {
+            // Navigate to target node
+            let mut current_link = &mut self.root;
+            for (_depth, go_left) in path.iter().take(target_depth) {
+                let node = current_link.as_mut().unwrap();
+                current_link = if *go_left {
+                    &mut node.left
+                } else {
+                    &mut node.right
+                };
+            }
+
+            // Rebuild tree at current link
+            if let Some(subtree_root) = current_link.take() {
+                let old_size = subtree_root.subtree_size;
+                let mut vectors = Self::collect_active_vectors(*subtree_root);
+                let new_size = vectors.len();
+
+                if !vectors.is_empty() {
+                    *current_link = Some(Self::build_recursive(&mut vectors, target_depth, dim));
+                }
+
+                // Only update ancestors if size changed (deleted nodes were purged)
+                if old_size != new_size {
+                    let size_diff = old_size - new_size;
+                    self.subtract_size_from_ancestors(path, target_depth, size_diff);
+
+                    self.total_nodes -= size_diff;
+                    self.deleted_count = self.deleted_count.saturating_sub(size_diff);
+                }
+            }
+        }
+    }
+
+    fn subtract_size_from_ancestors(
+        &mut self,
+        path: &[(usize, bool)],
+        up_to_depth: usize,
+        diff: usize,
+    ) {
+        let mut current = &mut self.root;
+        for (_, go_left) in path.iter().take(up_to_depth) {
+            if let Some(node) = current {
+                node.subtree_size -= diff;
+                current = if *go_left {
+                    &mut node.left
+                } else {
+                    &mut node.right
+                };
+            }
+        }
+    }
+
+    fn check_and_rebalance(&mut self, path: &[(usize, bool)]) {
+        // Find the lowest depth where imbalance occurs
+        let mut unbalaced_depth: Option<usize> = None;
+
+        let mut current = self.root.as_ref();
+
+        for (depth, go_left) in path {
+            if let Some(node) = current {
+                if Self::is_unbalanced(node) {
+                    unbalaced_depth = Some(*depth);
+                    break;
+                }
+                current = if *go_left {
+                    node.left.as_ref()
+                } else {
+                    node.right.as_ref()
+                };
+            }
+        }
+
+        if let Some(target_depth) = unbalaced_depth {
+            self.rebuild_at_depth(path, target_depth);
+        }
+    }
+
+    fn should_rebuild_global(&self) -> bool {
+        self.total_nodes > 0
+            && (self.deleted_count as f32 / self.total_nodes as f32) > Self::DELETE_REBUILD_RATIO
     }
 
     // Returns true if point found and deleted, else false
@@ -178,8 +329,22 @@ impl KDTree {
         if self.point_ids.contains(point_id) {
             let deleted = Self::find_and_mark_deleted(&mut self.root, *point_id);
             if deleted {
+                self.deleted_count += 1;
                 self.point_ids.remove(point_id);
             }
+
+            if Self::should_rebuild_global(self) {
+                if let Some(root) = self.root.take() {
+                    let mut vectors = Self::collect_active_vectors(*root);
+                    if !vectors.is_empty() {
+                        self.root = Some(Self::build_recursive(&mut vectors, 0, self.dim));
+                    }
+
+                    self.total_nodes = vectors.len();
+                    self.deleted_count = 0;
+                }
+            }
+
             return deleted;
         }
         false
@@ -286,6 +451,7 @@ impl KDTree {
 }
 
 impl VectorIndex for KDTree {
+    //TODO: Recalculate the total counts and deleted in main KD tree after rebuilds
     fn insert(&mut self, vector: IndexedVector) -> Result<(), DbError> {
         self.insert_point(vector);
         Ok(())
