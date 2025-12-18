@@ -130,12 +130,15 @@ impl KDTree {
             Some(Self::build_recursive(right_points, depth + 1, dim))
         };
 
+        let left_size = left.as_ref().map_or(0, |n| n.subtree_size);
+        let right_size = right.as_ref().map_or(0, |n| n.subtree_size);
+
         Box::new(KDTreeNode {
             indexed_vector: median_vec,
             left,
             right,
             is_deleted: false,
-            subtree_size: vectors.len(),
+            subtree_size: left_size + right_size + 1,
         })
     }
 
@@ -295,26 +298,44 @@ impl KDTree {
     }
 
     fn check_and_rebalance(&mut self, path: &[(usize, bool)]) {
-        // Find the lowest depth where imbalance occurs
-        let mut unbalaced_depth: Option<usize> = None;
+        // Find the shallowest (closest to root) depth where imbalance occurs
+        // so that rebuilding fixes the largest unbalanced subtree
+        let mut unbalanced_depth: Option<usize> = None;
 
         let mut current = self.root.as_ref();
 
-        for (depth, go_left) in path {
+        // Check root first (depth 0)
+        if let Some(node) = current {
+            if Self::is_unbalanced(node) {
+                unbalanced_depth = Some(0);
+            }
+        }
+
+        // Then traverse the path and check each node
+        // Once we find the shallowest unbalanced node, break immediately
+        for (idx, (_depth, go_left)) in path.iter().enumerate() {
+            if unbalanced_depth.is_some() {
+                break;
+            }
+
             if let Some(node) = current {
-                if Self::is_unbalanced(node) {
-                    unbalaced_depth = Some(*depth);
-                    break;
-                }
                 current = if *go_left {
                     node.left.as_ref()
                 } else {
                     node.right.as_ref()
                 };
+
+                // Check the child node we just moved to (at depth idx + 1)
+                if let Some(child) = current {
+                    if Self::is_unbalanced(child) {
+                        unbalanced_depth = Some(idx + 1);
+                        break;
+                    }
+                }
             }
         }
 
-        if let Some(target_depth) = unbalaced_depth {
+        if let Some(target_depth) = unbalanced_depth {
             self.rebuild_at_depth(path, target_depth);
         }
     }
@@ -436,14 +457,17 @@ impl KDTree {
             }
 
             // Pruning on the farther side to check if there are better candidates
-            let axis_diff = query_vector[axis] - node.indexed_vector.vector[axis];
-            let dist_to_plane = match dist_type {
-                Similarity::Euclidean => axis_diff.abs(),
-                Similarity::Manhattan => axis_diff.abs(),
-                _ => 0.0, // Cosine/Hamming - no effective pruning, always search
+            // For Euclidean: the heap stores sqrt distances, so we compare axis_diff with the heap's max distance
+            // For Manhattan: direct comparison works since it's a sum of absolute differences
+            let axis_diff = (query_vector[axis] - node.indexed_vector.vector[axis]).abs();
+            let should_search_far = match dist_type {
+                Similarity::Euclidean | Similarity::Manhattan => {
+                    heap.len() < k || axis_diff < heap.peek().unwrap().distance
+                }
+                _ => true, // Cosine/Hamming - no effective pruning, always search
             };
 
-            if heap.len() < k || dist_to_plane < heap.peek().unwrap().distance {
+            if should_search_far {
                 self.search_recursive(far_side, query_vector, k, heap, depth + 1, dist_type);
             }
         }
@@ -451,7 +475,6 @@ impl KDTree {
 }
 
 impl VectorIndex for KDTree {
-    //TODO: Recalculate the total counts and deleted in main KD tree after rebuilds
     fn insert(&mut self, vector: IndexedVector) -> Result<(), DbError> {
         self.insert_point(vector);
         Ok(())
@@ -473,5 +496,450 @@ impl VectorIndex for KDTree {
 
         let results = self.search_top_k(query_vector, k, similarity);
         Ok(results.into_iter().map(|(id, _)| id).collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_vector(vector: Vec<f32>) -> IndexedVector {
+        IndexedVector {
+            id: Uuid::new_v4(),
+            vector,
+        }
+    }
+
+    fn make_vector_with_id(id: Uuid, vector: Vec<f32>) -> IndexedVector {
+        IndexedVector { id, vector }
+    }
+
+    // Build Tests
+
+    #[test]
+    fn test_build_empty() {
+        let tree = KDTree::build_empty(3);
+        assert!(tree.root.is_none());
+        assert_eq!(tree.dim, 3);
+        assert_eq!(tree.total_nodes, 0);
+        assert!(tree.point_ids.is_empty());
+    }
+
+    #[test]
+    fn test_build_with_empty_vectors_returns_error() {
+        let result = KDTree::build(vec![]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_build_single_vector() {
+        let id = Uuid::new_v4();
+        let vectors = vec![make_vector_with_id(id, vec![1.0, 2.0, 3.0])];
+        let tree = KDTree::build(vectors).unwrap();
+
+        assert!(tree.root.is_some());
+        assert_eq!(tree.dim, 3);
+        assert_eq!(tree.total_nodes, 1);
+        assert!(tree.point_ids.contains(&id));
+    }
+
+    #[test]
+    fn test_build_multiple_vectors() {
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
+        let vectors = vec![
+            make_vector_with_id(id1, vec![1.0, 2.0]),
+            make_vector_with_id(id2, vec![3.0, 4.0]),
+            make_vector_with_id(id3, vec![5.0, 6.0]),
+        ];
+        let tree = KDTree::build(vectors).unwrap();
+
+        assert!(tree.root.is_some());
+        assert_eq!(tree.dim, 2);
+        assert_eq!(tree.total_nodes, 3);
+        assert!(tree.point_ids.contains(&id1));
+        assert!(tree.point_ids.contains(&id2));
+        assert!(tree.point_ids.contains(&id3));
+    }
+
+    // Insert Tests
+
+    #[test]
+    fn test_insert_into_empty_tree() {
+        let mut tree = KDTree::build_empty(2);
+        let id = Uuid::new_v4();
+        let vector = make_vector_with_id(id, vec![1.0, 2.0]);
+
+        let result = tree.insert(vector);
+        assert!(result.is_ok());
+        assert_eq!(tree.total_nodes, 1);
+        assert!(tree.point_ids.contains(&id));
+        assert!(tree.root.is_some());
+    }
+
+    #[test]
+    fn test_insert_multiple_vectors() {
+        let mut tree = KDTree::build_empty(2);
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
+
+        tree.insert(make_vector_with_id(id1, vec![1.0, 2.0]))
+            .unwrap();
+        tree.insert(make_vector_with_id(id2, vec![3.0, 4.0]))
+            .unwrap();
+        tree.insert(make_vector_with_id(id3, vec![5.0, 6.0]))
+            .unwrap();
+
+        assert_eq!(tree.total_nodes, 3);
+        assert!(tree.point_ids.contains(&id1));
+        assert!(tree.point_ids.contains(&id2));
+        assert!(tree.point_ids.contains(&id3));
+    }
+
+    // Delete Tests
+
+    #[test]
+    fn test_delete_existing_point() {
+        let mut ids = Vec::new();
+        let mut vectors = Vec::new();
+
+        // Create enough vectors so deleting one doesn't trigger global rebuild
+        for i in 0..10 {
+            let id = Uuid::new_v4();
+            ids.push(id);
+            vectors.push(make_vector_with_id(id, vec![i as f32, i as f32]));
+        }
+
+        let mut tree = KDTree::build(vectors).unwrap();
+
+        let result = tree.delete(ids[0]).unwrap();
+        assert!(result);
+        assert!(!tree.point_ids.contains(&ids[0]));
+        assert_eq!(tree.deleted_count, 1);
+    }
+
+    #[test]
+    fn test_delete_non_existing_point() {
+        let id1 = Uuid::new_v4();
+        let vectors = vec![make_vector_with_id(id1, vec![1.0, 2.0])];
+        let mut tree = KDTree::build(vectors).unwrap();
+
+        let non_existing_id = Uuid::new_v4();
+        let result = tree.delete(non_existing_id).unwrap();
+        assert!(!result);
+        assert_eq!(tree.deleted_count, 0);
+    }
+
+    #[test]
+    fn test_delete_from_empty_tree() {
+        let mut tree = KDTree::build_empty(2);
+        let result = tree.delete(Uuid::new_v4()).unwrap();
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_deleted_point_not_in_search_results() {
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
+        let vectors = vec![
+            make_vector_with_id(id1, vec![0.0, 0.0]),
+            make_vector_with_id(id2, vec![1.0, 1.0]),
+            make_vector_with_id(id3, vec![10.0, 10.0]),
+        ];
+        let mut tree = KDTree::build(vectors).unwrap();
+
+        // Delete the closest point
+        tree.delete(id1).unwrap();
+
+        // Search should not return the deleted point
+        let results = tree
+            .search(vec![0.0, 0.0], Similarity::Euclidean, 2)
+            .unwrap();
+        assert!(!results.contains(&id1));
+        assert!(results.contains(&id2));
+    }
+
+    // Search Tests (VectorIndex trait)
+
+    #[test]
+    fn test_search_empty_tree() {
+        let tree = KDTree::build_empty(2);
+        let results = tree
+            .search(vec![1.0, 2.0], Similarity::Euclidean, 5)
+            .unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_search_euclidean() {
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
+        let vectors = vec![
+            make_vector_with_id(id1, vec![1.0, 1.0]),
+            make_vector_with_id(id2, vec![2.0, 2.0]),
+            make_vector_with_id(id3, vec![10.0, 10.0]),
+        ];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let results = tree
+            .search(vec![0.0, 0.0], Similarity::Euclidean, 2)
+            .unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0], id1); // Closest
+        assert_eq!(results[1], id2); // Second closest
+    }
+
+    #[test]
+    fn test_search_manhattan() {
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
+        let vectors = vec![
+            make_vector_with_id(id1, vec![1.0, 1.0]),
+            make_vector_with_id(id2, vec![2.0, 2.0]),
+            make_vector_with_id(id3, vec![5.0, 5.0]),
+        ];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let results = tree
+            .search(vec![0.0, 0.0], Similarity::Manhattan, 2)
+            .unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0], id1);
+        assert_eq!(results[1], id2);
+    }
+
+    #[test]
+    fn test_search_unsupported_similarity_cosine() {
+        let vectors = vec![make_vector(vec![1.0, 2.0])];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let result = tree.search(vec![1.0, 2.0], Similarity::Cosine, 1);
+        assert!(matches!(result, Err(DbError::UnsupportedSimilarity)));
+    }
+
+    #[test]
+    fn test_search_unsupported_similarity_hamming() {
+        let vectors = vec![make_vector(vec![1.0, 2.0])];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let result = tree.search(vec![1.0, 2.0], Similarity::Hamming, 1);
+        assert!(matches!(result, Err(DbError::UnsupportedSimilarity)));
+    }
+
+    #[test]
+    fn test_search_k_larger_than_tree_size() {
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let vectors = vec![
+            make_vector_with_id(id1, vec![1.0, 1.0]),
+            make_vector_with_id(id2, vec![2.0, 2.0]),
+        ];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let results = tree
+            .search(vec![0.0, 0.0], Similarity::Euclidean, 10)
+            .unwrap();
+        assert_eq!(results.len(), 2); // Should return all available points
+    }
+
+    #[test]
+    fn test_search_exact_match() {
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let vectors = vec![
+            make_vector_with_id(id1, vec![5.0, 5.0]),
+            make_vector_with_id(id2, vec![10.0, 10.0]),
+        ];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let results = tree
+            .search(vec![5.0, 5.0], Similarity::Euclidean, 1)
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0], id1);
+    }
+
+    // Search Correctness Tests
+
+    #[test]
+    fn test_search_correctness_3d() {
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
+        let id4 = Uuid::new_v4();
+        let vectors = vec![
+            make_vector_with_id(id1, vec![0.0, 0.0, 0.0]),
+            make_vector_with_id(id2, vec![1.0, 1.0, 1.0]),
+            make_vector_with_id(id3, vec![2.0, 2.0, 2.0]),
+            make_vector_with_id(id4, vec![10.0, 10.0, 10.0]),
+        ];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let results = tree
+            .search(vec![0.5, 0.5, 0.5], Similarity::Euclidean, 2)
+            .unwrap();
+        // id1 at distance sqrt(0.75) ≈ 0.866
+        // id2 at distance sqrt(0.75) ≈ 0.866
+        // Both are equidistant, should return both
+        assert_eq!(results.len(), 2);
+        assert!(results.contains(&id1) || results.contains(&id2));
+    }
+
+    #[test]
+    fn test_search_after_insert() {
+        let mut tree = KDTree::build_empty(2);
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
+
+        tree.insert(make_vector_with_id(id1, vec![10.0, 10.0]))
+            .unwrap();
+        tree.insert(make_vector_with_id(id2, vec![1.0, 1.0]))
+            .unwrap();
+        tree.insert(make_vector_with_id(id3, vec![5.0, 5.0]))
+            .unwrap();
+
+        let results = tree
+            .search(vec![0.0, 0.0], Similarity::Euclidean, 2)
+            .unwrap();
+        assert_eq!(results[0], id2); // Closest to origin
+        assert_eq!(results[1], id3); // Second closest
+    }
+
+    #[test]
+    fn test_search_high_dimensional() {
+        let dim = 10;
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+
+        let vectors = vec![
+            make_vector_with_id(id1, vec![0.0; dim]),
+            make_vector_with_id(id2, vec![1.0; dim]),
+        ];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let query = vec![0.1; dim];
+        let results = tree.search(query, Similarity::Euclidean, 1).unwrap();
+        assert_eq!(results[0], id1); // Closer to all-zeros
+    }
+
+    // Rebalancing Tests
+
+    #[test]
+    fn test_many_inserts_maintains_searchability() {
+        let mut tree = KDTree::build_empty(2);
+        let mut ids = Vec::new();
+
+        // Insert many points that would cause imbalance
+        for i in 0..20 {
+            let id = Uuid::new_v4();
+            ids.push(id);
+            tree.insert(make_vector_with_id(id, vec![i as f32, i as f32]))
+                .unwrap();
+        }
+
+        // Search should still work correctly
+        let results = tree
+            .search(vec![0.0, 0.0], Similarity::Euclidean, 5)
+            .unwrap();
+        assert_eq!(results.len(), 5);
+        // First result should be the point at (0, 0)
+        assert_eq!(results[0], ids[0]);
+    }
+
+    #[test]
+    fn test_delete_triggers_rebuild() {
+        let mut ids = Vec::new();
+        let mut vectors = Vec::new();
+
+        for i in 0..10 {
+            let id = Uuid::new_v4();
+            ids.push(id);
+            vectors.push(make_vector_with_id(id, vec![i as f32, i as f32]));
+        }
+
+        let mut tree = KDTree::build(vectors).unwrap();
+
+        // Delete enough points to trigger rebuild (> 25%)
+        for id in ids.iter().take(3) {
+            tree.delete(*id).unwrap();
+        }
+
+        // Tree should still function correctly
+        let results = tree
+            .search(vec![5.0, 5.0], Similarity::Euclidean, 3)
+            .unwrap();
+        assert_eq!(results.len(), 3);
+        // Deleted points should not appear
+        for id in ids.iter().take(3) {
+            assert!(!results.contains(id));
+        }
+    }
+
+    // ==================== Edge Cases ====================
+
+    #[test]
+    fn test_single_point_search() {
+        let id = Uuid::new_v4();
+        let vectors = vec![make_vector_with_id(id, vec![5.0, 5.0])];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let results = tree
+            .search(vec![0.0, 0.0], Similarity::Euclidean, 1)
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0], id);
+    }
+
+    #[test]
+    fn test_duplicate_coordinates() {
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
+        let vectors = vec![
+            make_vector_with_id(id1, vec![1.0, 1.0]),
+            make_vector_with_id(id2, vec![1.0, 1.0]), // Same coordinates
+            make_vector_with_id(id3, vec![2.0, 2.0]),
+        ];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let results = tree
+            .search(vec![1.0, 1.0], Similarity::Euclidean, 2)
+            .unwrap();
+        assert_eq!(results.len(), 2);
+        // Both id1 and id2 should be in results (both at distance 0)
+        assert!(results.contains(&id1) || results.contains(&id2));
+    }
+
+    #[test]
+    fn test_negative_coordinates() {
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let vectors = vec![
+            make_vector_with_id(id1, vec![-1.0, -1.0]),
+            make_vector_with_id(id2, vec![1.0, 1.0]),
+        ];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let results = tree
+            .search(vec![-0.5, -0.5], Similarity::Euclidean, 1)
+            .unwrap();
+        assert_eq!(results[0], id1);
+    }
+
+    #[test]
+    fn test_search_with_zero_k() {
+        let vectors = vec![make_vector(vec![1.0, 2.0])];
+        let tree = KDTree::build(vectors).unwrap();
+
+        let results = tree
+            .search(vec![1.0, 2.0], Similarity::Euclidean, 0)
+            .unwrap();
+        assert!(results.is_empty());
     }
 }
