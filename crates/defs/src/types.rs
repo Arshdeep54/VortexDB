@@ -92,8 +92,8 @@ impl<'q> Eq for DistanceOrderedVector<'q> {}
 //     Context(ContextQuery<VectorInternal>),
 // }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct OrdF32(f32);
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
+pub struct OrdF32(pub f32);
 
 impl OrdF32 {
     pub fn new(x: f32) -> Self {
@@ -115,5 +115,11 @@ impl Ord for OrdF32 {
 impl PartialOrd for OrdF32 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl From<f32> for OrdF32 {
+    fn from(x: f32) -> Self {
+        Self(x)
     }
 }

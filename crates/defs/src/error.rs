@@ -9,6 +9,8 @@ pub enum DbError {
     DeserializationError,
     IndexError(String),
     LockError,
+    IndexInitError, //TODO: Change this
+    UnsupportedSimilarity,
     DimensionMismatch,
     InvalidDimension { expected: Dimension, got: Dimension },
     PointAlreadyExists { id: PointId },
