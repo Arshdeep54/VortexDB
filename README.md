@@ -58,6 +58,53 @@ Interactive terminal user interface built with [Ratatui](https://github.com/rata
 - Vector operations (insert, search, delete)
 - Modal dialogs for user input
 
+### Unified Server Startup
+
+VortexDB offers a Dockerfile and a docker-compose for starting up the gRPC and HTTP servers  
+Steps to get the unified server running:  
+```
+cp .env.example .env
+```
+
+The following env vars are important, and are required to be set by the user:  
+`GRPC_ROOT_PASSWORD`  
+`DIMENSION`  
+`DATA_PATH`  
+
+**NOTE**: `DATA_PATH` is the directory within the container where persistent data is stored
+
+
+Setting of the following env vars is optional, as they fallback to safe defaults, but recommended:  
+| .env Var | Function | Safe Default |
+| :--- | :--- | :--- |
+| `HTTP_HOST` | Host IP for the HTTP Server | `0.0.0.0` |
+| `HTTP_PORT` | Port for the HTTP Server | `3000` |
+| `GRPC_HOST` | Host IP for the gRPC Server | `0.0.0.0` |
+| `GRPC_PORT` | Port for the gRPC Server | `50051` |
+| `STORAGE_TYPE` | Store `inmemory` \| `rocksdb` | `inmemory` |
+| `INDEX_TYPE` | Type of Indexer: `flat` \| `kdtree` \| `hnsw` | `flat` |
+| `LOGGING` | Enable logs | `true` |
+| `DISABLE_HTTP` | Bool flag to run the HTTP Server | `false` |
+
+
+**NOTE**: CLI flags (e.g. `docker compose run --env` ) take precedence over docker-compose environment values, which in turn override `.env` file variables.
+
+Now you're all set up.  
+
+To run the unified server:  
+```
+docker compose up
+```
+To build the image again and run the unified server (recommended after code changes):
+```
+docker compose up --build
+```
+To run only the gRPC server (HTTP server disabled):
+```
+DISABLE_HTTP=true docker compose up
+```
+
+
 
 ## Roadmap
 

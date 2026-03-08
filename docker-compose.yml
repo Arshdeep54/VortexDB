@@ -1,0 +1,36 @@
+services:
+  vortexdb:
+    build: .
+    image: vortexdb:latest
+    container_name: vortexdb
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      HTTP_HOST: ${HTTP_HOST:-0.0.0.0}
+      HTTP_PORT: ${HTTP_PORT:-3000}
+      GRPC_HOST: ${GRPC_HOST:-0.0.0.0}
+      GRPC_PORT: ${GRPC_PORT:-50051}
+
+      STORAGE_TYPE: ${STORAGE_TYPE:-inmemory}
+      INDEX_TYPE: ${INDEX_TYPE:-flat}
+      LOGGING: ${LOGGING:-true}
+      DISABLE_HTTP: ${DISABLE_HTTP:-false}
+
+      # Required
+      GRPC_ROOT_PASSWORD: ${GRPC_ROOT_PASSWORD}
+      DIMENSION: ${DIMENSION}
+
+      DATA_PATH: /data
+
+    ports:
+      - "${HTTP_PORT:-3000}:3000"
+      - "${GRPC_PORT:-50051}:50051"
+
+    volumes:
+      - vortexdb_data:/data
+
+volumes:
+  vortexdb_data:
