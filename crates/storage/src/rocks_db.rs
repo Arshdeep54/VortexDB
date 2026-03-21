@@ -1,9 +1,11 @@
 // Rewrite needed
 
+use crate::error::{self, StorageError};
 use crate::{StorageEngine, VectorPage};
 use bincode::{deserialize, serialize};
-use defs::{DbError, DenseVector, Payload, Point, PointId};
-use rocksdb::{DB, Error, Options};
+use defs::{DenseVector, Payload, Point, PointId};
+use rocksdb::{DB, Options};
+use snafu::ResultExt;
 use std::path::PathBuf;
 
 //TODO: Implement RocksDbStorage with necessary fields and implementations
@@ -13,14 +15,9 @@ pub struct RocksDbStorage {
     pub db: DB,
 }
 
-pub enum RocksDBStorageError {
-    RocksDBError(Error),
-    SerializationError,
-}
-
 impl RocksDbStorage {
     // Creates new db or switches to existing db
-    pub fn new(path: impl Into<PathBuf>) -> Result<Self, DbError> {
+    pub fn new(path: impl Into<PathBuf>) -> Result<Self, StorageError> {
         // Initialize a db at the given location
         let mut options = Options::default();
 
@@ -31,9 +28,10 @@ impl RocksDbStorage {
         options.create_if_missing(true);
 
         let converted_path = path.into();
+        let path_str = converted_path.display().to_string();
 
         let db = DB::open(&options, converted_path.clone())
-            .map_err(|e| DbError::StorageError(e.into_string()))?;
+            .context(error::RocksDbOpenSnafu { path: path_str })?;
 
         Ok(RocksDbStorage {
             path: converted_path,
@@ -52,28 +50,30 @@ impl StorageEngine for RocksDbStorage {
         id: PointId,
         vector: Option<DenseVector>,
         payload: Option<Payload>,
-    ) -> Result<(), DbError> {
+    ) -> Result<(), StorageError> {
         let key = id.to_string();
         let point = Point {
             id,
             vector,
             payload,
         };
-        let value = serialize(&point).map_err(|e| DbError::SerializationError(e.to_string()))?;
-        match self.db.put(key.as_bytes(), value.as_slice()) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(DbError::StorageError(e.into_string())),
-        }
+        let value = serialize(&point).context(error::SerializationSnafu { id })?;
+
+        self.db
+            .put(key.as_bytes(), value.as_slice())
+            .context(error::RocksDbWriteSnafu { id })?;
+
+        Ok(())
     }
 
-    fn contains_point(&self, id: PointId) -> Result<bool, DbError> {
+    fn contains_point(&self, id: PointId) -> Result<bool, StorageError> {
         // Efficient lookup inspired from https://github.com/facebook/rocksdb/issues/11586#issuecomment-1890429488
         let key = id.to_string();
         if self.db.key_may_exist(key.clone()) {
             let key_exist = self
                 .db
                 .get(key)
-                .map_err(|e| DbError::StorageError(e.into_string()))?
+                .context(error::RocksDbReadSnafu { id })?
                 .is_some();
             Ok(key_exist)
         } else {
@@ -81,48 +81,46 @@ impl StorageEngine for RocksDbStorage {
         }
     }
 
-    fn delete_point(&self, id: PointId) -> Result<(), DbError> {
+    fn delete_point(&self, id: PointId) -> Result<(), StorageError> {
         let key = id.to_string();
         self.db
             .delete(key)
-            .map_err(|e| DbError::StorageError(e.into_string()))?;
+            .context(error::RocksDbDeleteSnafu { id })?;
 
         Ok(())
     }
 
-    fn get_payload(&self, id: PointId) -> Result<Option<Payload>, DbError> {
+    fn get_payload(&self, id: PointId) -> Result<Option<Payload>, StorageError> {
         let key = id.to_string();
-        let Some(value_serialized) = self
-            .db
-            .get(key)
-            .map_err(|e| DbError::StorageError(e.into_string()))?
+        let Some(value_serialized) = self.db.get(key).context(error::RocksDbReadSnafu { id })?
         else {
             return Ok(None); // This should not return error but rather give None
         };
 
         let value =
-            deserialize::<Point>(&value_serialized).map_err(|_| DbError::DeserializationError)?;
+            deserialize::<Point>(&value_serialized).context(error::DeserializationSnafu { id })?;
 
         Ok(value.payload)
     }
 
-    fn get_vector(&self, id: PointId) -> Result<Option<DenseVector>, DbError> {
+    fn get_vector(&self, id: PointId) -> Result<Option<DenseVector>, StorageError> {
         let key = id.to_string();
-        let Some(value_serialized) = self
-            .db
-            .get(key)
-            .map_err(|e| DbError::StorageError(e.into_string()))?
+        let Some(value_serialized) = self.db.get(key).context(error::RocksDbReadSnafu { id })?
         else {
             return Ok(None); // This should not return error but rather give None
         };
 
         let value =
-            deserialize::<Point>(&value_serialized).map_err(|_| DbError::DeserializationError)?;
+            deserialize::<Point>(&value_serialized).context(error::DeserializationSnafu { id })?;
 
         Ok(value.vector)
     }
 
-    fn list_vectors(&self, offset: PointId, limit: usize) -> Result<Option<VectorPage>, DbError> {
+    fn list_vectors(
+        &self,
+        offset: PointId,
+        limit: usize,
+    ) -> Result<Option<VectorPage>, StorageError> {
         if limit < 1 {
             return Ok(None);
         }
@@ -135,8 +133,9 @@ impl StorageEngine for RocksDbStorage {
         let mut last_id = offset;
 
         for item in iter {
-            let (_, v) = item.map_err(|e| DbError::StorageError(e.into_string()))?;
-            let point: Point = deserialize(&v).map_err(|_| DbError::DeserializationError)?;
+            let (_, v) = item.context(error::RocksDbIterationSnafu)?;
+            let point: Point =
+                deserialize(&v).context(error::DeserializationSnafu { id: offset })?;
 
             if point.id <= offset {
                 continue;
@@ -263,5 +262,24 @@ mod tests {
         let id = Uuid::new_v4();
 
         assert_eq!(db.get_payload(id).unwrap(), None);
+    }
+    #[test]
+    fn test_error_context_preservation() {
+        // Test that the error chain is preserved
+        let result = RocksDbStorage::new("/proc/invalid-path");
+
+        if let Err(err) = result {
+            // The Display implementation should show both the context and source
+            let err_string = format!("{}", err);
+            println!("Full error message: {}", err_string);
+
+            // Should contain our custom context
+            assert!(err_string.contains("Failed to open RocksDB"));
+            assert!(err_string.contains("/proc/invalid-path"));
+
+            // The error should also be debuggable
+            let debug_string = format!("{:?}", err);
+            println!("Debug format: {}", debug_string);
+        }
     }
 }

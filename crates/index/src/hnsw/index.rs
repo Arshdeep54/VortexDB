@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
-use defs::{DbError, DenseVector, Dimension, IndexedVector, PointId, Similarity};
+use defs::{DenseVector, Dimension, IndexedVector, PointId, Similarity};
 use uuid::Uuid;
 
 use crate::VectorIndex;
+use crate::{IndexError, Result};
 
 use super::types::{HnswStats, LevelGenerator, Node, PointIndexation};
 use std::cmp::{max, min};
@@ -55,8 +56,8 @@ impl HnswIndex {
     /// Returns a slice of the stored vector for the given PointId.
     /// TODO: integrate this cache with an in-memory store backed by RocksDB; on cache miss,
     /// fetch from storage, populate the cache, and return a stable slice.
-    pub(super) fn get_vec(&self, id: PointId) -> Result<&Vec<f32>, DbError> {
-        self.cache.get(&id).ok_or(DbError::PointNotFound { id })
+    pub(super) fn get_vec(&self, id: PointId) -> Result<&Vec<f32>> {
+        self.cache.get(&id).ok_or(IndexError::PointNotFound { id })
     }
 }
 
@@ -67,14 +68,14 @@ impl VectorIndex for HnswIndex {
     /// - greedy descend from current entry to l+1 to get a pivot
     /// - for each level down to 0: ef-construction, diversity pruning, bidirectional connect with caps
     /// - if l is above current max level, update the entry point
-    fn insert(&mut self, vector: IndexedVector) -> Result<(), DbError> {
+    fn insert(&mut self, vector: IndexedVector) -> Result<()> {
         if self.index.nodes.contains_key(&vector.id) {
-            return Err(DbError::PointAlreadyExists { id: vector.id });
+            return Err(IndexError::PointAlreadyExists { id: vector.id });
         }
 
         let dim = vector.vector.len();
         if dim != self.data_dimension {
-            return Err(DbError::InvalidDimension {
+            return Err(IndexError::DimensionMismatch {
                 expected: self.data_dimension,
                 got: dim,
             });
@@ -152,7 +153,7 @@ impl VectorIndex for HnswIndex {
     /// - mark node as deleted and clear its cached vector
     /// - traversals skip deleted nodes
     /// - if entry point was deleted, move it to the highest-level non-deleted node (or None)
-    fn delete(&mut self, point_id: PointId) -> Result<bool, DbError> {
+    fn delete(&mut self, point_id: PointId) -> Result<bool> {
         if let Some(node) = self.index.nodes.get_mut(&point_id) {
             if node.deleted {
                 return Ok(false);
@@ -177,13 +178,13 @@ impl VectorIndex for HnswIndex {
         mut query: DenseVector,
         _similarity: Similarity,
         k: usize,
-    ) -> Result<Vec<PointId>, DbError> {
+    ) -> Result<Vec<PointId>> {
         if k == 0 {
             return Ok(Vec::new());
         }
 
         if query.len() != self.data_dimension {
-            return Err(DbError::InvalidDimension {
+            return Err(IndexError::DimensionMismatch {
                 expected: self.data_dimension,
                 got: query.len(),
             });
@@ -219,7 +220,7 @@ impl VectorIndex for HnswIndex {
 impl HnswIndex {
     /// Full rebuild from surviving (non-deleted) vectors currently in-memory.
     /// Gathers all non-deleted vectors from the cache, clears the graph, and reinserts.
-    pub fn rebuild_full(&mut self) -> Result<(), DbError> {
+    pub fn rebuild_full(&mut self) -> Result<()> {
         let ids: Vec<PointId> = self
             .index
             .nodes

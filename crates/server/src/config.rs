@@ -2,6 +2,7 @@ use api::DbConfig;
 use defs::Similarity;
 use dotenv::dotenv;
 use index::IndexType;
+use snafu::prelude::*;
 use std::env;
 use std::fs;
 use std::net::SocketAddr;
@@ -22,33 +23,29 @@ pub struct ServerConfig {
     pub disable_http: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub))]
 pub enum ConfigError {
-    MissingRequiredEnvVar(String),
+    #[snafu(display("Missing required environment variable: {var}"))]
+    MissingRequiredEnvVar { var: String },
+
+    #[snafu(display("Invalid dimension value"))]
     InvalidDimension,
-    InvalidDataPath,
-    InvalidAddress(String),
-    IoError(String),
+
+    #[snafu(display("Invalid data path: {source}"))]
+    InvalidDataPath { source: std::io::Error },
+
+    #[snafu(display("IO error: {source}"))]
+    IoError { source: std::io::Error },
+
+    #[snafu(display("Invalid address: {addr}"))]
+    InvalidAddress { addr: String },
 }
 
-impl std::fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConfigError::MissingRequiredEnvVar(var) => {
-                write!(f, "Missing required environment variable: {}", var)
-            }
-            ConfigError::InvalidDimension => write!(f, "Invalid dimension value"),
-            ConfigError::InvalidDataPath => write!(f, "Invalid data path"),
-            ConfigError::InvalidAddress(addr) => write!(f, "Invalid address: {}", addr),
-            ConfigError::IoError(err) => write!(f, "IO error: {}", err),
-        }
-    }
-}
-
-impl std::error::Error for ConfigError {}
+pub type Result<T, E = ConfigError> = std::result::Result<T, E>;
 
 impl ServerConfig {
-    pub fn load_config() -> Result<Self, ConfigError> {
+    pub fn load_config() -> Result<Self> {
         dotenv().ok();
 
         // HTTP server configuration
@@ -71,9 +68,12 @@ impl ServerConfig {
             })
             .unwrap_or_else(|_| DEFAULT_HTTP_PORT.to_string());
 
-        let http_addr: SocketAddr = format!("{}:{}", http_host, http_port)
-            .parse()
-            .map_err(|_| ConfigError::InvalidAddress(format!("{}:{}", http_host, http_port)))?;
+        let http_addr: SocketAddr =
+            format!("{}:{}", http_host, http_port)
+                .parse()
+                .map_err(|_| ConfigError::InvalidAddress {
+                    addr: format!("{}:{}", http_host, http_port),
+                })?;
 
         // gRPC server configuration
         let grpc_host = env::var("GRPC_HOST")
@@ -95,13 +95,18 @@ impl ServerConfig {
             })
             .unwrap_or_else(|_| DEFAULT_GRPC_PORT.to_string());
 
-        let grpc_addr: SocketAddr = format!("{}:{}", grpc_host, grpc_port)
-            .parse()
-            .map_err(|_| ConfigError::InvalidAddress(format!("{}:{}", grpc_host, grpc_port)))?;
+        let grpc_addr: SocketAddr =
+            format!("{}:{}", grpc_host, grpc_port)
+                .parse()
+                .map_err(|_| ConfigError::InvalidAddress {
+                    addr: format!("{}:{}", grpc_host, grpc_port),
+                })?;
 
         // gRPC root password (required)
-        let grpc_root_password = env::var("GRPC_ROOT_PASSWORD")
-            .map_err(|_| ConfigError::MissingRequiredEnvVar("GRPC_ROOT_PASSWORD".to_string()))?;
+        let grpc_root_password =
+            env::var("GRPC_ROOT_PASSWORD").map_err(|_| ConfigError::MissingRequiredEnvVar {
+                var: "GRPC_ROOT_PASSWORD".to_string(),
+            })?;
 
         // Storage type
         let storage_type_str = env::var("STORAGE_TYPE")
@@ -136,18 +141,20 @@ impl ServerConfig {
 
         // Dimension (required)
         let dimension: usize = env::var("DIMENSION")
-            .map_err(|_| ConfigError::MissingRequiredEnvVar("DIMENSION".to_string()))?
+            .map_err(|_| ConfigError::MissingRequiredEnvVar {
+                var: "DIMENSION".to_string(),
+            })?
             .parse()
             .map_err(|_| ConfigError::InvalidDimension)?;
 
         // Data path
         let data_path: PathBuf = if let Ok(data_path_str) = env::var("DATA_PATH") {
             let path = PathBuf::from(data_path_str);
-            fs::create_dir_all(&path).map_err(|_| ConfigError::InvalidDataPath)?;
+            fs::create_dir_all(&path).map_err(|e| ConfigError::InvalidDataPath { source: e })?;
             path
         } else {
             let tempbuf = env::temp_dir().join("vectordb");
-            fs::create_dir_all(&tempbuf).map_err(|e| ConfigError::IoError(e.to_string()))?;
+            fs::create_dir_all(&tempbuf).map_err(|e| ConfigError::IoError { source: e })?;
             event!(
                 Level::WARN,
                 "DATA_PATH not specified, using temporary directory: {:?}",

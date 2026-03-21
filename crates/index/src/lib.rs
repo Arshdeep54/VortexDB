@@ -1,23 +1,23 @@
-use defs::{DbError, DenseVector, IndexedVector, PointId, Similarity};
+use defs::{DenseVector, IndexedVector, PointId, Similarity};
+pub use error::{IndexError, Result};
 
+pub mod error;
 pub mod flat;
 pub mod hnsw;
 pub mod kd_tree;
 
 pub trait VectorIndex: Send + Sync {
-    fn insert(&mut self, vector: IndexedVector) -> Result<(), DbError>;
+    fn insert(&mut self, vector: IndexedVector) -> Result<()>;
 
     // Returns true if point id existed and is deleted, else returns false
-    fn delete(&mut self, point_id: PointId) -> Result<bool, DbError>;
+    fn delete(&mut self, point_id: PointId) -> Result<bool>;
 
     fn search(
         &self,
         query_vector: DenseVector,
         similarity: Similarity,
         k: usize,
-    ) -> Result<Vec<PointId>, DbError>; // Return a Vec of ids of closest vectors (length max k)
-
-    // fn build() -> Result<(), DbError>; move this to impl for dyn compatibility
+    ) -> Result<Vec<PointId>>; // Return a Vec of ids of closest vectors (length max k)
 }
 
 /// Distance function to get the distance between two vectors (taken from old version)

@@ -2,9 +2,9 @@ use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::collections::HashSet;
 
-use defs::DbError;
 use defs::{OrdF32, PointId};
 
+use crate::Result;
 use crate::distance;
 
 use super::index::HnswIndex;
@@ -19,7 +19,7 @@ impl HnswIndex {
         ep: PointId,
         level: usize,
         query: &[f32],
-    ) -> Result<PointId, DbError> {
+    ) -> Result<PointId> {
         let mut current = ep;
         loop {
             let cur_vec = self.get_vec(current)?;
@@ -72,7 +72,7 @@ impl HnswIndex {
         level: usize,
         query: &[f32],
         ef_construction: usize,
-    ) -> Result<Vec<(PointId, f32)>, DbError> {
+    ) -> Result<Vec<(PointId, f32)>> {
         let mut visited: HashSet<PointId> = HashSet::new();
 
         let mut candidates: BinaryHeap<(Reverse<OrdF32>, PointId)> = BinaryHeap::new();
@@ -155,7 +155,7 @@ impl HnswIndex {
         &self,
         candidates: &[(PointId, f32)],
         m: usize,
-    ) -> Result<Vec<PointId>, DbError> {
+    ) -> Result<Vec<PointId>> {
         if candidates.is_empty() || m == 0 {
             return Ok(Vec::new());
         }
@@ -192,7 +192,7 @@ impl HnswIndex {
         neighbors: &[PointId],
         level: usize,
         m: usize,
-    ) -> Result<(), DbError> {
+    ) -> Result<()> {
         self.merge_and_prune(p, level, neighbors, m)?;
 
         for &n in neighbors {
@@ -244,7 +244,7 @@ impl HnswIndex {
         level: usize,
         to_add: &[PointId],
         cap: usize,
-    ) -> Result<(), DbError> {
+    ) -> Result<()> {
         self.ensure_level(center, level);
 
         let mut merged: Vec<PointId> = {

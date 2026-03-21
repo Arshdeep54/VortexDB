@@ -1,5 +1,6 @@
+use crate::error::StorageError;
 use crate::{StorageEngine, VectorPage};
-use defs::{DbError, DenseVector, Payload, PointId};
+use defs::{DenseVector, Payload, PointId};
 
 pub struct MemoryStorage {
     // define here how MemoryStorage will be defined
@@ -23,22 +24,26 @@ impl StorageEngine for MemoryStorage {
         _id: PointId,
         _vector: Option<DenseVector>,
         _payload: Option<Payload>,
-    ) -> Result<(), DbError> {
+    ) -> Result<(), StorageError> {
         Ok(())
     }
-    fn contains_point(&self, _id: PointId) -> Result<bool, DbError> {
+    fn contains_point(&self, _id: PointId) -> Result<bool, StorageError> {
         Ok(true)
     }
-    fn delete_point(&self, _id: PointId) -> Result<(), DbError> {
+    fn delete_point(&self, _id: PointId) -> Result<(), StorageError> {
         Ok(())
     }
-    fn get_payload(&self, _id: PointId) -> Result<Option<Payload>, DbError> {
+    fn get_payload(&self, _id: PointId) -> Result<Option<Payload>, StorageError> {
         Ok(None)
     }
-    fn get_vector(&self, _id: PointId) -> Result<Option<DenseVector>, DbError> {
+    fn get_vector(&self, _id: PointId) -> Result<Option<DenseVector>, StorageError> {
         Ok(None)
     }
-    fn list_vectors(&self, _offset: PointId, _limit: usize) -> Result<Option<VectorPage>, DbError> {
+    fn list_vectors(
+        &self,
+        _offset: PointId,
+        _limit: usize,
+    ) -> Result<Option<VectorPage>, StorageError> {
         Ok(None)
     }
 }

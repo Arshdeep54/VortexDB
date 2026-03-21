@@ -32,6 +32,7 @@ reqwest = { version = "0.12", features = ["json", "blocking", "multipart"] }
 rocksdb = "0.21.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.145"
+snafu = "0.8.9"
 tempfile = "3.23.0"
 tokio = { version = "1.47.1", features = ["full"] }
 tokio-stream = "0.1.17"

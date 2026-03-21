@@ -1,5 +1,5 @@
 pub mod constants;
-pub mod errors;
+pub mod error;
 pub mod interceptors;
 pub mod service;
 pub mod utils;

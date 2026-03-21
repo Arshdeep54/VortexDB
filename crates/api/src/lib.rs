@@ -1,4 +1,4 @@
-use defs::{DbError, Dimension, IndexedVector, Similarity};
+use defs::{Dimension, IndexedVector, Similarity};
 
 use defs::{DenseVector, Payload, Point, PointId};
 use index::hnsw::HnswIndex;
@@ -12,6 +12,9 @@ use storage::rocks_db::RocksDbStorage;
 use storage::{StorageEngine, StorageType, VectorPage};
 
 use uuid::Uuid;
+
+pub mod error;
+pub use error::{ApiError, Result};
 
 // static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -43,9 +46,12 @@ impl VectorDb {
     }
 
     //TODO: Make this an atomic operation
-    pub fn insert(&self, vector: DenseVector, payload: Payload) -> Result<PointId, DbError> {
+    pub fn insert(&self, vector: DenseVector, payload: Payload) -> Result<PointId> {
         if vector.len() != self.dimension {
-            return Err(DbError::DimensionMismatch);
+            return Err(ApiError::DimensionMismatch {
+                expected: self.dimension,
+                got: vector.len(),
+            });
         }
         // Generate a new point id
         let point_id = generate_point_id();
@@ -53,7 +59,7 @@ impl VectorDb {
             .insert_point(point_id, Some(vector.clone()), Some(payload))?;
 
         // Get write lock on the index
-        let mut index = self.index.write().map_err(|_| DbError::LockError)?;
+        let mut index = self.index.write().map_err(|_| ApiError::LockError)?;
         index.insert(IndexedVector {
             vector,
             id: point_id,
@@ -63,16 +69,16 @@ impl VectorDb {
     }
 
     //TODO: Make this an atomic operation
-    pub fn delete(&self, id: PointId) -> Result<bool, DbError> {
+    pub fn delete(&self, id: PointId) -> Result<bool> {
         // Remove from storage
         self.storage.delete_point(id)?;
         // Remove from index
-        let mut index = self.index.write().map_err(|_| DbError::LockError)?;
+        let mut index = self.index.write().map_err(|_| ApiError::LockError)?;
         let point_found = index.delete(id)?;
         Ok(point_found)
     }
 
-    pub fn get(&self, id: PointId) -> Result<Option<Point>, DbError> {
+    pub fn get(&self, id: PointId) -> Result<Option<Point>> {
         // Search for the Point with given id in storage
         let payload = self.storage.get_payload(id)?;
         let vector = self.storage.get_vector(id)?;
@@ -92,9 +98,22 @@ impl VectorDb {
         query: DenseVector,
         similarity: Similarity,
         limit: usize,
-    ) -> Result<Vec<PointId>, DbError> {
+    ) -> Result<Vec<PointId>> {
+        // Validate search limit
+        if limit == 0 {
+            return Err(ApiError::InvalidSearchLimit { limit });
+        }
+
+        // Validate query dimension
+        if query.len() != self.dimension {
+            return Err(ApiError::DimensionMismatch {
+                expected: self.dimension,
+                got: query.len(),
+            });
+        }
+
         // Use vector index to find similar vectors
-        let index = self.index.read().map_err(|_| DbError::LockError)?;
+        let index = self.index.read().map_err(|_| ApiError::LockError)?;
 
         //TODO: Add feat of returning similarity scores in the search
         let vectors = index.search(query, similarity, limit)?;
@@ -102,18 +121,19 @@ impl VectorDb {
         Ok(vectors)
     }
 
-    pub fn list(&self, offset: PointId, limit: usize) -> Result<Option<VectorPage>, DbError> {
-        self.storage.list_vectors(offset, limit)
+    pub fn list(&self, offset: PointId, limit: usize) -> Result<Option<VectorPage>> {
+        let page = self.storage.list_vectors(offset, limit)?;
+        Ok(page)
     }
 
     // populates the current index with vectors from the storage
-    pub fn build_index(&self) -> Result<usize, DbError> {
+    pub fn build_index(&self) -> Result<usize> {
         // start from the minimal UUID and fetch in bounded batches and insert
         let mut offset = Uuid::nil();
         let page_size: usize = 1000;
         let mut inserted: usize = 0;
 
-        let mut index = self.index.write().map_err(|_| DbError::LockError)?;
+        let mut index = self.index.write().map_err(|_| ApiError::LockError)?;
 
         while let Some((batch, next_offset)) = self.storage.list_vectors(offset, page_size)? {
             if batch.is_empty() || next_offset == offset {
@@ -141,7 +161,7 @@ pub struct DbConfig {
     pub similarity: Similarity,
 }
 
-pub fn init_api(config: DbConfig) -> Result<VectorDb, DbError> {
+pub fn init_api(config: DbConfig) -> Result<VectorDb> {
     // Initialize the storage engine
     let storage = match config.storage_type {
         StorageType::RocksDb => Arc::new(RocksDbStorage::new(config.data_path)?),
@@ -230,7 +250,13 @@ mod tests {
         // Insert vector of dimension 2 != 3
         let res2 = db.insert(v2, payload);
         assert!(res2.is_err());
-        assert_eq!(res2.unwrap_err(), DbError::DimensionMismatch);
+        match res2.unwrap_err() {
+            ApiError::DimensionMismatch { expected, got } => {
+                assert_eq!(expected, 3);
+                assert_eq!(got, 2);
+            }
+            other => panic!("Expected DimensionMismatch, got: {:?}", other),
+        }
     }
 
     #[test]
@@ -310,6 +336,22 @@ mod tests {
         let results = db.search(query, Similarity::Euclidean, 3).unwrap();
 
         assert_eq!(results.len(), 3);
+    }
+
+    #[test]
+    fn test_search_zero_limit() {
+        let (db, _temp_dir) = create_test_db();
+
+        let query = vec![1.0, 2.0, 3.0];
+        let result = db.search(query, Similarity::Cosine, 0);
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ApiError::InvalidSearchLimit { limit } => {
+                assert_eq!(limit, 0);
+            }
+            other => panic!("Expected InvalidSearchLimit, got: {:?}", other),
+        }
     }
 
     #[test]

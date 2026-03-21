@@ -1,7 +1,7 @@
 // use super::helpers::{collect_active_vectors, is_unbalanced, should_rebuild_global};
 use super::types::{KDTreeNode, Neighbor};
-use crate::{VectorIndex, distance};
-use defs::{DbError, DenseVector, IndexedVector, OrdF32, PointId, Similarity};
+use crate::{IndexError, Result, VectorIndex, distance};
+use defs::{DenseVector, IndexedVector, OrdF32, PointId, Similarity};
 use std::{
     cmp::Ordering,
     collections::{BinaryHeap, HashSet},
@@ -32,9 +32,9 @@ impl KDTree {
     }
 
     // Builds the vector index from provided vectors, there should atleast be single vector for dim calculation
-    pub fn build(mut vectors: Vec<IndexedVector>) -> Result<Self, DbError> {
+    pub fn build(mut vectors: Vec<IndexedVector>) -> Result<Self> {
         if vectors.is_empty() {
-            Err(DbError::IndexInitError)
+            Err(IndexError::NotInitialized)
         } else {
             let dim = vectors[0].vector.len();
 
@@ -407,12 +407,12 @@ impl KDTree {
 }
 
 impl VectorIndex for KDTree {
-    fn insert(&mut self, vector: IndexedVector) -> Result<(), DbError> {
+    fn insert(&mut self, vector: IndexedVector) -> Result<()> {
         self.insert_point(vector);
         Ok(())
     }
 
-    fn delete(&mut self, point_id: PointId) -> Result<bool, DbError> {
+    fn delete(&mut self, point_id: PointId) -> Result<bool> {
         Ok(self.delete_point(&point_id))
     }
 
@@ -421,9 +421,11 @@ impl VectorIndex for KDTree {
         query_vector: DenseVector,
         similarity: Similarity,
         k: usize,
-    ) -> Result<Vec<PointId>, DbError> {
+    ) -> Result<Vec<PointId>> {
         if matches!(similarity, Similarity::Cosine | Similarity::Hamming) {
-            return Err(DbError::UnsupportedSimilarity);
+            return Err(IndexError::UnsupportedSimilarity {
+                metric: format!("{:?}", similarity),
+            });
         }
 
         let results = self.search_top_k(query_vector, k, similarity);

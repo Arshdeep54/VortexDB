@@ -1,8 +1,9 @@
 use super::index::KDTree;
+use crate::IndexError;
 use crate::VectorIndex;
 use crate::distance;
 use crate::flat::FlatIndex;
-use defs::{DbError, IndexedVector, Similarity};
+use defs::{IndexedVector, Similarity};
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -222,7 +223,10 @@ fn test_search_unsupported_similarity_cosine() {
     let tree = KDTree::build(vectors).unwrap();
 
     let result = tree.search(vec![1.0, 2.0], Similarity::Cosine, 1);
-    assert!(matches!(result, Err(DbError::UnsupportedSimilarity)));
+    assert!(matches!(
+        result,
+        Err(IndexError::UnsupportedSimilarity { .. })
+    ));
 }
 
 #[test]
@@ -231,7 +235,10 @@ fn test_search_unsupported_similarity_hamming() {
     let tree = KDTree::build(vectors).unwrap();
 
     let result = tree.search(vec![1.0, 2.0], Similarity::Hamming, 1);
-    assert!(matches!(result, Err(DbError::UnsupportedSimilarity)));
+    assert!(matches!(
+        result,
+        Err(IndexError::UnsupportedSimilarity { .. })
+    ));
 }
 
 #[test]

@@ -62,8 +62,7 @@ impl VectorDb for VectorDBService {
             },
         );
 
-        let res =
-            point_id.map_err(|e| Status::internal(format!("failed to insert vector: {:?}", e)))?;
+        let res = point_id.map_err(|e| Status::from(crate::error::GrpcError::from(e)))?;
 
         Ok(Response::new(PointId {
             id: Some(Uuid {
@@ -81,7 +80,7 @@ impl VectorDb for VectorDBService {
         let point_opt = self
             .vector_db
             .get(UuidCrate::from_str(&point_id).unwrap())
-            .map_err(|e| Status::aborted(format!("point not found {:?}", e)))?;
+            .map_err(|e| Status::from(crate::error::GrpcError::from(e)))?;
 
         // return error if not found
         let point = point_opt.ok_or(Status::not_found(format!("point not found: {}", point_id)))?;
@@ -131,7 +130,7 @@ impl VectorDb for VectorDBService {
         let result_point_ids = self
             .vector_db
             .search(query_vect.values, *similarity, limit as usize)
-            .map_err(|_| Status::internal("Internal server error"))?;
+            .map_err(|e| Status::from(crate::error::GrpcError::from(e)))?;
 
         // create a mapped vector of PointIds
         let result = result_point_ids
@@ -164,7 +163,7 @@ impl VectorDb for VectorDBService {
                     Err(Status::not_found("Point not found"))
                 }
             }
-            Err(_) => Err(Status::internal("Error deleting point")),
+            Err(e) => Err(Status::from(crate::error::GrpcError::from(e))),
         }
     }
 }
