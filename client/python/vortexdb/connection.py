@@ -1,0 +1,73 @@
+import grpc
+from typing import Any, Callable
+
+from vortexdb.config import VortexDBConfig
+from vortexdb.exceptions import (
+    AuthenticationError,
+    NotFoundError,
+    InvalidArgumentError,
+    TimeoutError,
+    ServiceUnavailableError,
+    InternalServerError,
+    VortexDBError,
+)
+
+from vortexdb.grpc.vector_db_pb2_grpc import VectorDBStub
+
+
+class GRPCConnection:
+    """ gRPC connection wrapper for VortexDB"""
+
+    def __init__(self, config: VortexDBConfig):
+        self._config = config
+        self._channel = grpc.insecure_channel(config.grpc_url)
+        self._stub = VectorDBStub(self._channel)
+        # Because this is required in every request
+        self._metadata = (
+            ("authorization", f"Bearer {config.api_key}"),
+        )
+
+    @property
+    def stub(self) -> VectorDBStub:
+        return self._stub
+
+    def call(
+        self,
+        rpc: Callable[..., Any],
+        request: Any,
+    ) -> Any:
+        """ Execute a gRPC call with standard error handling """
+        try:
+            return rpc(
+                request,
+                timeout=self._config.timeout,
+                metadata=self._metadata,
+            )
+
+        except grpc.RpcError as e:
+            raise self._map_grpc_error(e) from e
+
+    def close(self) -> None:
+        """ Close the underlying gRPC channel """
+        self._channel.close()
+
+    @staticmethod
+    def _map_grpc_error(error: grpc.RpcError) -> VortexDBError:
+        code = error.code()
+
+        if code == grpc.StatusCode.UNAUTHENTICATED:
+            return AuthenticationError(error.details())
+
+        if code == grpc.StatusCode.NOT_FOUND:
+            return NotFoundError(error.details())
+
+        if code == grpc.StatusCode.INVALID_ARGUMENT:
+            return InvalidArgumentError(error.details())
+
+        if code == grpc.StatusCode.DEADLINE_EXCEEDED:
+            return TimeoutError(error.details())
+
+        if code == grpc.StatusCode.UNAVAILABLE:
+            return ServiceUnavailableError(error.details())
+
+        return InternalServerError(error.details())

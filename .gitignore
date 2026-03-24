@@ -7,3 +7,9 @@
 .TODO
 /databases
 .env
+__pycache__/
+build/
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
