@@ -7,7 +7,10 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+bincode.workspace = true
 defs.workspace = true
 rand.workspace = true
+serde.workspace = true
 snafu.workspace = true
+storage.workspace = true
 uuid.workspace = true

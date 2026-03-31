@@ -15,6 +15,8 @@ pub type Dimension = usize;
 // Sparse vector implementation not supported yet. Refer lib/sparse/src/common/sparse_vector.rs
 pub type DenseVector = Vec<Element>;
 
+pub type Magic = [u8; 4];
+
 pub enum StoredVector {
     Dense(DenseVector),
 }
@@ -45,7 +47,7 @@ pub struct IndexedVector {
     pub vector: DenseVector,
 }
 
-#[derive(Debug, Deserialize, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
 pub enum Similarity {
     Euclidean,
     Manhattan,
