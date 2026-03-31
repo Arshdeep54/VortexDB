@@ -1,4 +1,4 @@
-FROM rust:1.85-bookworm AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.88-bookworm@sha256:d184d41fd934afd282bf8f04b602aaa952af88341c48b8738b0c0a85ac7a6cec AS chef
 
 WORKDIR /app
 
@@ -10,8 +10,6 @@ RUN apt-get update && apt-get install -y \
     llvm-dev \
     build-essential \
  && rm -rf /var/lib/apt/lists/*
-
-RUN cargo install cargo-chef
 
 # Planner Stage
 FROM chef AS planner
@@ -35,8 +33,9 @@ COPY crates ./crates
 # Building the binary
 RUN cargo build --release --bin server
 
+
 # Runtime Stage
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a AS runtime
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \
