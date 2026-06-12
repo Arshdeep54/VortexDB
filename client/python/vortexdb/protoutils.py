@@ -36,21 +36,29 @@ def build_search_request(
     vector: DenseVector,
     similarity: Similarity,
     limit: int,
+    ef: int | None = None,
 ) -> vector_db_pb2.SearchRequest:
     return vector_db_pb2.SearchRequest(
         query_vector=vector.to_proto(),
         similarity=similarity.to_proto(),
         limit=limit,
+        ef=ef or 0,
     )
 
 
 def build_batch_search_request(
     *,
     queries: list[tuple[DenseVector, Similarity, int]],
+    ef: int | None = None,
 ) -> vector_db_pb2.SearchPointsBatchRequest:
     return vector_db_pb2.SearchPointsBatchRequest(
         queries=[
-            build_search_request(vector=vector, similarity=similarity, limit=limit)
+            build_search_request(
+                vector=vector,
+                similarity=similarity,
+                limit=limit,
+                ef=ef,
+            )
             for vector, similarity, limit in queries
         ]
     )

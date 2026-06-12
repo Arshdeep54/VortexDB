@@ -203,11 +203,16 @@ impl VectorIndex for HnswIndex {
     /// - greedy descend from the top layer to level 1
     /// - run ef-best-first at level 0 with ef0 = max(ef, k)
     /// - return up to k ids by ascending distance
-    fn search(
+    fn search(&self, query: DenseVector, similarity: Similarity, k: usize) -> Result<Vec<PointId>> {
+        self.search_with_ef(query, similarity, k, None)
+    }
+
+    fn search_with_ef(
         &self,
         mut query: DenseVector,
         _similarity: Similarity,
         k: usize,
+        ef: Option<usize>,
     ) -> Result<Vec<PointId>> {
         if k == 0 {
             return Ok(Vec::new());
@@ -239,7 +244,7 @@ impl VectorIndex for HnswIndex {
                 ep = self.greedy_search_layer(ep, level, &query)?;
             }
         }
-        let ef0 = max(self.ef, k);
+        let ef0 = max(ef.unwrap_or(self.ef), k);
         let mut w = self.search_layer_for_insert(ep, 0, &query, ef0)?;
         w.truncate(k);
         let result: Vec<Uuid> = w.into_iter().map(|(id, _)| id).collect();

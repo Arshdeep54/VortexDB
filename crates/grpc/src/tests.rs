@@ -217,6 +217,7 @@ async fn test_search_vector_rpc() {
         }),
         similarity: 0, // euclidean distance
         limit: 1,
+        ef: 0,
     });
     append_test_auth_header(&mut request, TEST_AUTH_BEARER_TOKEN);
 

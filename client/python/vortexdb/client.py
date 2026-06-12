@@ -109,6 +109,7 @@ class VortexDB:
         vector: DenseVector,
         similarity: Similarity,
         limit: int,
+        ef: int | None = None,
     ) -> List[str]:
         """
         Search for nearest neighbors.
@@ -120,6 +121,7 @@ class VortexDB:
             vector=vector,
             similarity=similarity,
             limit=limit,
+            ef=ef,
         )
 
         response = self._conn.call(
@@ -133,6 +135,7 @@ class VortexDB:
         self,
         *,
         queries: Sequence[tuple[DenseVector, Similarity, int]],
+        ef: int | None = None,
     ) -> List[List[str]]:
         """
         Search nearest neighbors for multiple query vectors.
@@ -143,6 +146,7 @@ class VortexDB:
 
         request = proto.build_batch_search_request(
             queries=list(queries),
+            ef=ef,
         )
 
         response = self._conn.call(

@@ -143,7 +143,8 @@ impl VectorDb {
         let index = self.index.read().map_err(|_| ApiError::LockError)?;
 
         //TODO: Add feat of returning similarity scores in the search
-        let vectors = index.search(query.vector, query.similarity, query.limit)?;
+        let vectors =
+            index.search_with_ef(query.vector, query.similarity, query.limit, query.ef)?;
 
         Ok(vectors)
     }
@@ -153,7 +154,8 @@ impl VectorDb {
         let index = self.index.read().unwrap();
 
         for query in queries {
-            let found = index.search(query.vector, query.similarity, query.limit)?;
+            let found =
+                index.search_with_ef(query.vector, query.similarity, query.limit, query.ef)?;
             results.push(found);
         }
 
@@ -431,6 +433,7 @@ mod tests {
                 vector: query,
                 similarity: Similarity::Cosine,
                 limit: 1,
+                ef: None,
             })
             .unwrap();
 
@@ -465,6 +468,7 @@ mod tests {
                 vector: query,
                 similarity: Similarity::Euclidean,
                 limit: 3,
+                ef: None,
             })
             .unwrap();
 
@@ -480,6 +484,7 @@ mod tests {
             vector: query,
             similarity: Similarity::Cosine,
             limit: 0,
+            ef: None,
         });
 
         assert!(result.is_err());
@@ -504,6 +509,7 @@ mod tests {
                 vector: query,
                 similarity: Similarity::Cosine,
                 limit: 10,
+                ef: None,
             })
             .unwrap();
         assert_eq!(results.len(), 0);

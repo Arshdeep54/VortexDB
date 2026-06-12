@@ -81,6 +81,7 @@ class AsyncVortexDB:
         vector: DenseVector,
         similarity: Similarity,
         limit: int,
+        ef: int | None = None,
     ) -> List[str]:
         """
         Search for nearest neighbors.
@@ -96,6 +97,7 @@ class AsyncVortexDB:
             vector=vector,
             similarity=similarity,
             limit=limit,
+            ef=ef,
         )
 
         response = await self._conn.call(

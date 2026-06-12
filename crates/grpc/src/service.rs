@@ -136,6 +136,7 @@ impl VectorDb for VectorDBService {
                 vector: query_vect.values,
                 similarity: *similarity,
                 limit: limit as usize,
+                ef: (search_request.ef > 0).then_some(search_request.ef as usize),
             })
             .map_err(|e| Status::from(crate::error::GrpcError::from(e)))?;
 
@@ -231,6 +232,7 @@ impl VectorDb for VectorDBService {
                         .values,
                     similarity: *similarity,
                     limit: query.limit as usize,
+                    ef: (query.ef > 0).then_some(query.ef as usize),
                 })
                 .map_err(|e| tonic::Status::from(GrpcError::from(e)))?;
 

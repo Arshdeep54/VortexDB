@@ -137,6 +137,20 @@ def test_search_success(client, mock_connection):
     assert results == ["p1", "p2"]
 
 
+def test_search_accepts_ef(client, mock_connection):
+    mock_connection.call.return_value = Mock(result_point_ids=[])
+
+    client.search(
+        vector=DenseVector([1, 2, 3]),
+        similarity=Similarity.COSINE,
+        limit=2,
+        ef=128,
+    )
+
+    request = mock_connection.call.call_args.args[1]
+    assert request.ef == 128
+
+
 def test_search_invalid_vector(client):
     with pytest.raises(TypeError):
         client.search(
@@ -171,6 +185,21 @@ def test_search_batch_success(client, mock_connection):
     )
 
     assert results == [["p1", "p2"], ["p3"]]
+
+
+def test_search_batch_accepts_ef(client, mock_connection):
+    mock_connection.call.return_value = Mock(results=[])
+
+    client.search_batch(
+        queries=[
+            (DenseVector([1, 2, 3]), Similarity.COSINE, 2),
+            (DenseVector([4, 5, 6]), Similarity.COSINE, 1),
+        ],
+        ef=256,
+    )
+
+    request = mock_connection.call.call_args.args[1]
+    assert [query.ef for query in request.queries] == [256, 256]
 
 
 def test_search_batch_rejects_invalid_vector(client):

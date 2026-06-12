@@ -85,6 +85,8 @@ pub struct SearchQueryInput {
     pub vector: DenseVector,
     pub similarity: Similarity,
     pub limit: usize,
+    #[serde(default)]
+    pub ef: Option<usize>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

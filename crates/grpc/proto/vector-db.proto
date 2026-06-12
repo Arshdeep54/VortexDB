@@ -36,6 +36,7 @@ message SearchRequest {
   DenseVector query_vector = 1;
   Similarity similarity = 2;
   uint64 limit = 3;
+  uint64 ef = 4;
 }
 
 

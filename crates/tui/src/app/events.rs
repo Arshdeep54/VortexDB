@@ -318,6 +318,7 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
                     vector: query,
                     similarity: Similarity::Cosine,
                     limit: k,
+                    ef: None,
                 })
                 .map_err(to_io)?;
 
