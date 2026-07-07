@@ -7,6 +7,8 @@ from vortexdb.models import (
     Payload,
     Point,
     Similarity,
+    SearchQuery,
+    to_dense_vectors,
 )
 from vortexdb.exceptions import (
     VortexDBError,
@@ -25,6 +27,8 @@ __all__ = [
     "Payload",
     "Point",
     "Similarity",
+    "SearchQuery",
+    "to_dense_vectors",
     "VortexDBError",
     "AuthenticationError",
     "NotFoundError",

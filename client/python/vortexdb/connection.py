@@ -8,7 +8,7 @@ from vortexdb.grpc.vector_db_pb2_grpc import VectorDBStub
 
 
 class GRPCConnection:
-    """ gRPC connection wrapper for VortexDB"""
+    """gRPC connection wrapper for VortexDB"""
 
     def __init__(self, config: VortexDBConfig):
         self._config = config
@@ -26,7 +26,7 @@ class GRPCConnection:
         rpc: Callable[..., Any],
         request: Any,
     ) -> Any:
-        """ Execute a gRPC call with standard error handling """
+        """Execute a gRPC call with standard error handling"""
         try:
             return rpc(
                 request,
@@ -38,5 +38,5 @@ class GRPCConnection:
             raise map_grpc_error(e) from e
 
     def close(self) -> None:
-        """ Close the underlying gRPC channel """
+        """Close the underlying gRPC channel"""
         self._channel.close()

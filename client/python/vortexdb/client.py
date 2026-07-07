@@ -1,4 +1,4 @@
-from typing import List, Sequence
+from typing import List
 
 from vortexdb.connection import GRPCConnection
 from vortexdb.config import VortexDBConfig
@@ -7,13 +7,14 @@ from vortexdb.models import (
     Payload,
     Point,
     Similarity,
+    SearchQuery,
 )
 
 from vortexdb import protoutils as proto
 
 
 class VortexDB:
-    """ High-level Python client for VortexDB """
+    """High-level Python client for VortexDB"""
 
     def __init__(
         self,
@@ -22,7 +23,7 @@ class VortexDB:
         api_key: str | None = None,
         timeout: float | None = None,
     ):
-    # Config order followed - args -> env vars -> defaults
+        # Config order followed - args -> env vars -> defaults
         self._config = VortexDBConfig.from_env(
             grpc_url=grpc_url,
             api_key=api_key,
@@ -31,7 +32,7 @@ class VortexDB:
 
         self._conn = GRPCConnection(self._config)
 
-# The basic operations
+    # The basic operations
 
     def insert(self, *, vector: DenseVector, payload: Payload) -> str:
         """
@@ -52,27 +53,17 @@ class VortexDB:
 
         return response.id.value
 
-    def insert_batch(
-        self,
-        *,
-        points: Sequence[tuple[DenseVector, Payload]],
-    ) -> List[str]:
+    def batch_insert(self, *, items: list[tuple[DenseVector, Payload]]) -> list[str]:
         """
-        Insert multiple vectors with payloads.
-        Returns: List of point IDs
+        Insert multiple vectors.
+        Returns: list of point_id (str)
         """
-        for vector, _ in points:
-            self._validate_dense_vector(vector)
-
-        request = proto.build_batch_insert_request(
-            points=list(points),
-        )
+        request = proto.build_batch_insert_request(items=items)
 
         response = self._conn.call(
             self._conn.stub.InsertVectorsBatch,
             request,
         )
-
         return [pid.id.value for pid in response.ids]
 
     def get(self, *, point_id: str) -> Point | None:
@@ -91,7 +82,6 @@ class VortexDB:
 
         return Point.from_proto(response)
 
-
     def delete(self, *, point_id: str) -> None:
         """
         Delete a point by ID.
@@ -106,16 +96,28 @@ class VortexDB:
     def search(
         self,
         *,
-        vector: DenseVector,
-        similarity: Similarity,
-        limit: int,
+        vector: DenseVector | None = None,
+        similarity: Similarity | None = None,
+        limit: int | None = None,
+        query: SearchQuery | None = None,
         ef: int | None = None,
     ) -> List[str]:
         """
         Search for nearest neighbors.
         Returns: List of point IDs
         """
-        self._validate_dense_vector(vector)
+        if query is not None:
+            if not isinstance(query, SearchQuery):
+                raise TypeError("query must be a SearchQuery")
+            vector = query.vector
+            similarity = query.similarity
+            limit = query.limit
+        else:
+            self._validate_dense_vector(vector)
+            if not isinstance(similarity, Similarity):
+                raise TypeError("similarity must be a Similarity enum")
+            if not isinstance(limit, int):
+                raise TypeError("limit must be an int")
 
         request = proto.build_search_request(
             vector=vector,
@@ -123,37 +125,72 @@ class VortexDB:
             limit=limit,
             ef=ef,
         )
-
         response = self._conn.call(
             self._conn.stub.SearchPoints,
             request,
         )
-
         return [pid.id.value for pid in response.result_point_ids]
 
-    def search_batch(
+    def batch_search(
         self,
         *,
-        queries: Sequence[tuple[DenseVector, Similarity, int]],
+        queries,
+        similarity: Similarity | None = None,
+        limit: int | None = None,
         ef: int | None = None,
     ) -> List[List[str]]:
         """
-        Search nearest neighbors for multiple query vectors.
-        Returns: List of result point ID lists
+        Flexible batch search.
+
+        Accepts:
+        - List[SearchQuery]
+        - List[(DenseVector, Similarity, int)]
+        - List[(DenseVector, Similarity)] + global limit
+        - List[(DenseVector, int)] + global similarity
+        - List[DenseVector] + global similarity + limit
         """
-        for vector, _, _ in queries:
-            self._validate_dense_vector(vector)
+        normalized = []
 
-        request = proto.build_batch_search_request(
-            queries=list(queries),
-            ef=ef,
-        )
+        for i, q in enumerate(queries):
+            if (
+                hasattr(q, "vector")
+                and hasattr(q, "similarity")
+                and hasattr(q, "limit")
+            ):
+                normalized.append((q.vector, q.similarity, q.limit))
+                continue
 
-        response = self._conn.call(
-            self._conn.stub.SearchPointsBatch,
-            request,
-        )
+            if isinstance(q, DenseVector):
+                if similarity is None or limit is None:
+                    raise ValueError(
+                        f"queries[{i}] requires global similarity and limit"
+                    )
+                normalized.append((q, similarity, limit))
+                continue
 
+            if isinstance(q, (list, tuple)):
+                if len(q) == 3:
+                    normalized.append(q)
+                    continue
+                if len(q) == 2:
+                    a, b = q
+
+                    if isinstance(a, DenseVector) and isinstance(b, Similarity):
+                        if limit is None:
+                            raise ValueError(f"queries[{i}] missing global limit")
+                        normalized.append((a, b, limit))
+                        continue
+
+                    if isinstance(a, DenseVector) and isinstance(b, int):
+                        if similarity is None:
+                            raise ValueError(f"queries[{i}] missing global similarity")
+                        normalized.append((a, similarity, b))
+                        continue
+
+            raise TypeError(f"Invalid query format at index {i}")
+
+        request = proto.build_batch_search_request(queries=normalized, ef=ef)
+        response = self._conn.call(self._conn.stub.SearchPointsBatch, request)
         return [
             [pid.id.value for pid in result.result_point_ids]
             for result in response.results
@@ -163,8 +200,7 @@ class VortexDB:
     def _validate_dense_vector(vector: DenseVector) -> None:
         if not isinstance(vector, DenseVector):
             raise TypeError(
-                "vector must be a DenseVector. "
-                "Use: DenseVector([1.0, 2.0, 3.0])"
+                "vector must be a DenseVector. Use: DenseVector([1.0, 2.0, 3.0])"
             )
 
     def close(self) -> None:

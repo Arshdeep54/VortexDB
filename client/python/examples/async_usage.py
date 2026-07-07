@@ -6,7 +6,7 @@ from vortexdb import AsyncVortexDB, DenseVector, Payload, Similarity
 async def main():
     async with AsyncVortexDB(
         grpc_url="localhost:50051",
-        api_key="your-api-key",
+        api_key="my-secret-password",
     ) as db:
         point_id = await db.insert(
             vector=DenseVector([0.1, 0.2, 0.3]),

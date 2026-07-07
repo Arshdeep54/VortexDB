@@ -16,6 +16,7 @@ from vortexdb.exceptions import (
 
 # Fake gRPC error, required for testing
 
+
 class FakeRpcError(grpc.RpcError):
     """
     RpcError implementation for unit testing.
@@ -35,6 +36,7 @@ class FakeRpcError(grpc.RpcError):
 
 # Pytest fixtures for config and channel
 
+
 @pytest.fixture
 def config():
     return VortexDBConfig(
@@ -52,6 +54,7 @@ def connection(config):
 
 
 # Basic connection testing
+
 
 def test_channel_created_with_correct_url(config):
     with patch("grpc.insecure_channel") as mock_channel:
@@ -77,6 +80,7 @@ def test_successful_rpc_call(connection):
 
 
 # Error mapping test
+
 
 @pytest.mark.parametrize(
     "status_code,expected_exception",
@@ -104,6 +108,7 @@ def test_unknown_grpc_error_maps_to_internal_error(connection):
 
 
 # Clean connection closure test
+
 
 def test_close_closes_channel(config):
     with patch("grpc.insecure_channel") as mock_channel:
