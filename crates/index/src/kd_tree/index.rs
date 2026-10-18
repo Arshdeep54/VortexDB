@@ -457,14 +457,13 @@ impl VectorIndex for KDTree {
         query_vector: DenseVector,
         similarity: Similarity,
         k: usize,
-    ) -> Result<Vec<PointId>> {
+    ) -> Result<Vec<(PointId, f32)>> {
         if matches!(similarity, Similarity::Cosine | Similarity::Hamming) {
             return Err(IndexError::UnsupportedSimilarity {
                 metric: format!("{:?}", similarity),
             });
         }
 
-        let results = self.search_top_k(query_vector, k, similarity);
-        Ok(results.into_iter().map(|(id, _)| id).collect())
+        Ok(self.search_top_k(query_vector, k, similarity))
     }
 }

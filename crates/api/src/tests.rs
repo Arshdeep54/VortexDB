@@ -154,7 +154,9 @@ fn test_search() {
         .unwrap();
 
     assert_eq!(results.len(), 1);
-    assert_eq!(results[0], ids[0]); // The first vector should be closest
+    assert_eq!(results[0].0, ids[0]); // The first vector should be closest
+    let expected = 1.0 - 1.0 / 1.02f32.sqrt();
+    assert!((results[0].1 - expected).abs() < 1e-6);
 }
 
 #[test]

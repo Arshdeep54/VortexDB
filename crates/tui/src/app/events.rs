@@ -326,7 +326,7 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
             app.vector_list_post_restore = false;
             app.vector_list_selected_index = 0;
 
-            for id in ids.into_iter() {
+            for (id, _) in ids.into_iter() {
                 if let Some(point) = db.get(id).map_err(to_io)?
                     && let Some(vector) = point.vector
                 {

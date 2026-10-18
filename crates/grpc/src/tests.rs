@@ -242,6 +242,7 @@ async fn test_search_vector_rpc() {
 
     // check if the returned point id matches the inserted point id
     assert_eq!(result.result_point_ids[0], PointId { id: point.id });
+    assert_eq!(result.scores, vec![2f32.sqrt()]);
 }
 
 #[tokio::test]

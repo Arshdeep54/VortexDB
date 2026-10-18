@@ -98,7 +98,8 @@ pub async fn search_points_handler(
 ) -> Result<Json<SearchResponse>, (StatusCode, String)> {
     match app_state.db.search(request) {
         Ok(results) => {
-            let response = SearchResponse { results };
+            let (results, scores) = results.into_iter().unzip();
+            let response = SearchResponse { results, scores };
             Ok(Json(response))
         }
         Err(e) => {
@@ -117,7 +118,10 @@ pub async fn batch_search_handler(
         .search_batch(request.queries)
         .map_err(|e| AppError::Api(e.to_string()))?
         .into_iter()
-        .map(|ids| SearchResponse { results: ids })
+        .map(|found| {
+            let (results, scores) = found.into_iter().unzip();
+            SearchResponse { results, scores }
+        })
         .collect();
 
     Ok(Json(BatchSearchResponse { results }))

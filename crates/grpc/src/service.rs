@@ -142,17 +142,23 @@ impl VectorDb for VectorDBService {
             .map_err(|e| Status::from(crate::error::GrpcError::from(e)))?;
 
         // create a mapped vector of PointIds
-        let result = result_point_ids
+        let (result, scores) = result_point_ids
             .into_iter()
-            .map(|id| PointId {
-                id: Some(Uuid {
-                    value: id.to_string(),
-                }),
+            .map(|(id, score)| {
+                (
+                    PointId {
+                        id: Some(Uuid {
+                            value: id.to_string(),
+                        }),
+                    },
+                    score,
+                )
             })
-            .collect();
+            .unzip();
 
         Ok(Response::new(SearchResponse {
             result_point_ids: result,
+            scores,
         }))
     }
 
@@ -239,15 +245,22 @@ impl VectorDb for VectorDBService {
                 })
                 .map_err(|e| tonic::Status::from(GrpcError::from(e)))?;
 
+            let (result_point_ids, scores) = ids
+                .into_iter()
+                .map(|(id, score)| {
+                    (
+                        PointId {
+                            id: Some(Uuid {
+                                value: id.to_string(),
+                            }),
+                        },
+                        score,
+                    )
+                })
+                .unzip();
             results.push(SearchResponse {
-                result_point_ids: ids
-                    .into_iter()
-                    .map(|id| PointId {
-                        id: Some(Uuid {
-                            value: id.to_string(),
-                        }),
-                    })
-                    .collect(),
+                result_point_ids,
+                scores,
             });
         }
 

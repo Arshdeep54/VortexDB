@@ -95,7 +95,7 @@ fn test_search_euclidean() {
     let results = index
         .search(vec![0.0, 0.0], Similarity::Euclidean, 2)
         .unwrap();
-    assert_eq!(results, vec![id1, id2]);
+    assert_eq!(results, vec![(id1, 2f32.sqrt()), (id2, 8f32.sqrt())]);
 }
 
 #[test]
@@ -124,7 +124,33 @@ fn test_search_cosine() {
         .unwrap();
 
     let results = index.search(vec![1.0, 1.0], Similarity::Cosine, 2).unwrap();
-    assert_eq!(results, vec![id2, id1]);
+    let ids: Vec<_> = results.into_iter().map(|(id, _)| id).collect();
+    assert_eq!(ids, vec![id2, id1]);
+}
+
+#[test]
+fn test_search_cosine_zero_vector() {
+    let mut index = FlatIndex::new();
+    let id1 = Uuid::new_v4();
+    let id2 = Uuid::new_v4();
+    index
+        .insert(IndexedVector {
+            id: id1,
+            vector: vec![1.0, 0.0],
+        })
+        .unwrap();
+    index
+        .insert(IndexedVector {
+            id: id2,
+            vector: vec![0.0, 0.0],
+        })
+        .unwrap();
+
+    let results = index.search(vec![1.0, 0.0], Similarity::Cosine, 2).unwrap();
+    assert_eq!(results, vec![(id1, 0.0), (id2, 1.0)]);
+
+    let results = index.search(vec![0.0, 0.0], Similarity::Cosine, 2).unwrap();
+    assert!(results.iter().all(|(_, d)| *d == 1.0));
 }
 
 #[test]
@@ -155,7 +181,7 @@ fn test_search_manhattan() {
     let results = index
         .search(vec![0.0, 0.0], Similarity::Manhattan, 2)
         .unwrap();
-    assert_eq!(results, vec![id1, id2]);
+    assert_eq!(results, vec![(id1, 2.0), (id2, 4.0)]);
 }
 
 #[test]
@@ -186,7 +212,8 @@ fn test_search_hamming() {
     let results = index
         .search(vec![1.0, 0.0, 0.0, 0.0], Similarity::Hamming, 2)
         .unwrap();
-    assert_eq!(results, vec![id2, id3]);
+    let ids: Vec<_> = results.into_iter().map(|(id, _)| id).collect();
+    assert_eq!(ids, vec![id2, id3]);
 }
 
 #[test]

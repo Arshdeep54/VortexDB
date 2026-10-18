@@ -55,7 +55,7 @@ pub struct IndexedVector {
     pub vector: DenseVector,
 }
 
-#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone, PartialEq, Eq)]
 pub enum Similarity {
     Euclidean,
     Manhattan,
@@ -92,6 +92,7 @@ pub struct SearchQueryInput {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SearchResponse {
     pub results: Vec<PointId>,
+    pub scores: Vec<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
