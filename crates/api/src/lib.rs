@@ -125,7 +125,7 @@ impl VectorDb {
         }
     }
 
-    pub fn search(&self, query: SearchQueryInput) -> Result<Vec<PointId>> {
+    pub fn search(&self, query: SearchQueryInput) -> Result<Vec<(PointId, f32)>> {
         // Validate search limit
         if query.limit == 0 {
             return Err(ApiError::InvalidSearchLimit { limit: query.limit });
@@ -142,14 +142,13 @@ impl VectorDb {
         // Use vector index to find similar vectors
         let index = self.index.read().map_err(|_| ApiError::LockError)?;
 
-        //TODO: Add feat of returning similarity scores in the search
         let vectors =
             index.search_with_ef(query.vector, query.similarity, query.limit, query.ef)?;
 
         Ok(vectors)
     }
 
-    pub fn search_batch(&self, queries: Vec<SearchQueryInput>) -> Result<Vec<Vec<PointId>>> {
+    pub fn search_batch(&self, queries: Vec<SearchQueryInput>) -> Result<Vec<Vec<(PointId, f32)>>> {
         let mut results = Vec::with_capacity(queries.len());
         let index = self.index.read().unwrap();
 

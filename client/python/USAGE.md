@@ -161,11 +161,11 @@ search(
     vector: DenseVector,
     similarity: Similarity,
     limit: int,
-) -> list[str]
+) -> list[tuple[str, float]]
 ```
 
 Returns
-- List of `point_id` strings
+- List of `(point_id, score)` tuples, where score is the distance (lower is closer)
 
 Raises
 - `TypeError` if `vector` is not a `DenseVector`
@@ -182,7 +182,7 @@ batch_search(
     queries,
     similarity: Similarity | None = None,
     limit: int | None = None,
-) -> list[list[str]]
+) -> list[list[tuple[str, float]]]
 ```
 
 Returns 

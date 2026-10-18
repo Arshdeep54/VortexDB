@@ -84,6 +84,7 @@ async fn in_memory_storage_http_smoke_test() {
     search_response.assert_status_ok();
     let search_body: serde_json::Value = search_response.json();
     assert_eq!(search_body["results"], json!([point_id]));
+    assert_eq!(search_body["scores"], json!([0.0]));
 
     let delete_response = server
         .delete(&format!("/points/{point_id}"))

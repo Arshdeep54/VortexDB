@@ -1,6 +1,6 @@
 use super::*;
-use crate::VectorIndex;
 use crate::flat::index::FlatIndex;
+use crate::{IndexError, VectorIndex};
 use defs::{IndexedVector, Similarity};
 use uuid::Uuid;
 
@@ -117,6 +117,13 @@ fn test_search_empty_index_returns_empty() {
 }
 
 #[test]
+fn test_search_rejects_mismatched_similarity() {
+    let index = HnswIndex::new(Similarity::Euclidean, 2);
+    let res = index.search(vec![0.0, 0.0], Similarity::Manhattan, 1);
+    assert!(matches!(res, Err(IndexError::UnsupportedSimilarity { .. })));
+}
+
+#[test]
 fn test_search_k_zero_returns_empty() {
     let mut index = HnswIndex::new(Similarity::Euclidean, 2);
     index
@@ -149,7 +156,7 @@ fn test_search_cosine_normalization_basic() {
     let res = index
         .search(vec![10.0, 0.0], Similarity::Cosine, 1)
         .unwrap();
-    assert_eq!(res, vec![ID1]);
+    assert_eq!(res, vec![(ID1, 0.0)]);
 }
 
 #[test]
@@ -183,7 +190,7 @@ fn test_soft_delete_and_search_skip() {
     let res = index
         .search(vec![0.9, 0.1], Similarity::Euclidean, 2)
         .unwrap();
-    assert!(!res.contains(&ID2));
+    assert!(!res.iter().any(|(id, _)| *id == ID2));
 
     // Deleting a non-existent id returns false
     let existed = index.delete(ID4).unwrap();

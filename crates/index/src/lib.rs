@@ -20,7 +20,7 @@ pub trait VectorIndex: Send + Sync + SerializableIndex {
         query_vector: DenseVector,
         similarity: Similarity,
         k: usize,
-    ) -> Result<Vec<PointId>>; // Return a Vec of ids of closest vectors (length max k)
+    ) -> Result<Vec<(PointId, f32)>>; // Return a Vec of (id, distance) of closest vectors (length max k)
 
     fn search_with_ef(
         &self,
@@ -28,7 +28,7 @@ pub trait VectorIndex: Send + Sync + SerializableIndex {
         similarity: Similarity,
         k: usize,
         _ef: Option<usize>,
-    ) -> Result<Vec<PointId>> {
+    ) -> Result<Vec<(PointId, f32)>> {
         self.search(query_vector, similarity, k)
     }
 
@@ -71,6 +71,9 @@ pub fn distance(a: &[f32], b: &[f32], dist_type: Similarity) -> f32 {
                 dot += x * y;
                 norm_a += x * x;
                 norm_b += y * y;
+            }
+            if norm_a == 0.0 || norm_b == 0.0 {
+                return 1.0;
             }
             1.0 - dot / (norm_a.sqrt() * norm_b.sqrt())
         }

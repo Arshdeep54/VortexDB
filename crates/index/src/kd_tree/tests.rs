@@ -164,8 +164,8 @@ fn test_deleted_point_not_in_search_results() {
     let results = tree
         .search(vec![0.0, 0.0], Similarity::Euclidean, 2)
         .unwrap();
-    assert!(!results.contains(&id1));
-    assert!(results.contains(&id2));
+    assert!(!results.iter().any(|(r, _)| *r == id1));
+    assert!(results.iter().any(|(r, _)| *r == id2));
 }
 
 // Search Tests (VectorIndex trait)
@@ -194,9 +194,7 @@ fn test_search_euclidean() {
     let results = tree
         .search(vec![0.0, 0.0], Similarity::Euclidean, 2)
         .unwrap();
-    assert_eq!(results.len(), 2);
-    assert_eq!(results[0], id1); // Closest
-    assert_eq!(results[1], id2); // Second closest
+    assert_eq!(results, vec![(id1, 2f32.sqrt()), (id2, 8f32.sqrt())]);
 }
 
 #[test]
@@ -214,9 +212,7 @@ fn test_search_manhattan() {
     let results = tree
         .search(vec![0.0, 0.0], Similarity::Manhattan, 2)
         .unwrap();
-    assert_eq!(results.len(), 2);
-    assert_eq!(results[0], id1);
-    assert_eq!(results[1], id2);
+    assert_eq!(results, vec![(id1, 2.0), (id2, 4.0)]);
 }
 
 #[test]
@@ -273,7 +269,7 @@ fn test_search_exact_match() {
         .search(vec![5.0, 5.0], Similarity::Euclidean, 1)
         .unwrap();
     assert_eq!(results.len(), 1);
-    assert_eq!(results[0], id1);
+    assert_eq!(results[0].0, id1);
 }
 
 // Search Correctness Tests
@@ -299,7 +295,7 @@ fn test_search_correctness_3d() {
     // id2 at distance sqrt(0.75) ≈ 0.866
     // Both are equidistant, should return both
     assert_eq!(results.len(), 2);
-    assert!(results.contains(&id1) || results.contains(&id2));
+    assert!(results.iter().any(|(r, _)| *r == id1 || *r == id2));
 }
 
 #[test]
@@ -319,8 +315,8 @@ fn test_search_after_insert() {
     let results = tree
         .search(vec![0.0, 0.0], Similarity::Euclidean, 2)
         .unwrap();
-    assert_eq!(results[0], id2); // Closest to origin
-    assert_eq!(results[1], id3); // Second closest
+    assert_eq!(results[0].0, id2); // Closest to origin
+    assert_eq!(results[1].0, id3); // Second closest
 }
 
 #[test]
@@ -337,7 +333,7 @@ fn test_search_high_dimensional() {
 
     let query = vec![0.1; dim];
     let results = tree.search(query, Similarity::Euclidean, 1).unwrap();
-    assert_eq!(results[0], id1); // Closer to all-zeros
+    assert_eq!(results[0].0, id1); // Closer to all-zeros
 }
 
 // Rebalancing Tests
@@ -361,7 +357,7 @@ fn test_many_inserts_maintains_searchability() {
         .unwrap();
     assert_eq!(results.len(), 5);
     // First result should be the point at (0, 0)
-    assert_eq!(results[0], ids[0]);
+    assert_eq!(results[0].0, ids[0]);
 }
 
 #[test]
@@ -389,7 +385,7 @@ fn test_delete_triggers_rebuild() {
     assert_eq!(results.len(), 3);
     // Deleted points should not appear
     for id in ids.iter().take(3) {
-        assert!(!results.contains(id));
+        assert!(!results.iter().any(|(r, _)| r == id));
     }
 }
 
@@ -405,7 +401,7 @@ fn test_single_point_search() {
         .search(vec![0.0, 0.0], Similarity::Euclidean, 1)
         .unwrap();
     assert_eq!(results.len(), 1);
-    assert_eq!(results[0], id);
+    assert_eq!(results[0].0, id);
 }
 
 #[test]
@@ -425,7 +421,7 @@ fn test_duplicate_coordinates() {
         .unwrap();
     assert_eq!(results.len(), 2);
     // Both id1 and id2 should be in results (both at distance 0)
-    assert!(results.contains(&id1) || results.contains(&id2));
+    assert!(results.iter().any(|(r, _)| *r == id1 || *r == id2));
 }
 
 #[test]
@@ -441,7 +437,7 @@ fn test_negative_coordinates() {
     let results = tree
         .search(vec![-0.5, -0.5], Similarity::Euclidean, 1)
         .unwrap();
-    assert_eq!(results[0], id1);
+    assert_eq!(results[0].0, id1);
 }
 
 #[test]
@@ -493,8 +489,8 @@ fn create_test_vectors_3d() -> Vec<IndexedVector> {
 /// Helper to verify that two result sets are valid k-nearest neighbor results
 /// Both should return the k closest points (by distance), but may differ on tie-breaking
 fn verify_same_results(
-    tree_results: &[Uuid],
-    flat_results: &[Uuid],
+    tree_results: &[(Uuid, f32)],
+    flat_results: &[(Uuid, f32)],
     vectors: &[IndexedVector],
     query: &[f32],
     similarity: Similarity,
@@ -509,6 +505,9 @@ fn verify_same_results(
 
     // Both should return at most k results
     assert!(tree_results.len() <= k);
+
+    let tree_results: Vec<Uuid> = tree_results.iter().map(|(id, _)| *id).collect();
+    let flat_results: Vec<Uuid> = flat_results.iter().map(|(id, _)| *id).collect();
 
     // Get distances for all results
     let query_vec = query.to_vec();
@@ -558,7 +557,7 @@ fn verify_same_results(
         get_distance(flat_results.last().unwrap())
     };
 
-    for id in tree_results {
+    for id in &tree_results {
         if !flat_set.contains(id) {
             // This ID is not in flat results, verify it's a tie
             let dist = get_distance(id);
@@ -580,7 +579,7 @@ fn verify_same_results(
         get_distance(tree_results.last().unwrap())
     };
 
-    for id in flat_results {
+    for id in &flat_results {
         if !tree_set.contains(id) {
             let dist = get_distance(id);
             assert!(

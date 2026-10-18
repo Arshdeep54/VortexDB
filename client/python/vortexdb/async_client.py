@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 
 from vortexdb import protoutils as proto
 from vortexdb.async_connection import AsyncGRPCConnection
@@ -98,10 +98,10 @@ class AsyncVortexDB:
         limit: int | None = None,
         query: SearchQuery | None = None,
         ef: int | None = None,
-    ) -> List[str]:
+    ) -> List[Tuple[str, float]]:
         """
         Search for nearest neighbors.
-        Returns: List of point IDs
+        Returns: List of (point ID, score) tuples
         """
         if query is not None:
             if not isinstance(query, SearchQuery):
@@ -131,7 +131,10 @@ class AsyncVortexDB:
             request,
         )
 
-        return [pid.id.value for pid in response.result_point_ids]
+        return [
+            (pid.id.value, score)
+            for pid, score in zip(response.result_point_ids, response.scores)
+        ]
 
     async def batch_search(
         self,
@@ -140,7 +143,7 @@ class AsyncVortexDB:
         similarity: Similarity | None = None,
         limit: int | None = None,
         ef: int | None = None,
-    ) -> List[List[str]]:
+    ) -> List[List[Tuple[str, float]]]:
         """
         Flexible batch search.
 
@@ -194,7 +197,10 @@ class AsyncVortexDB:
         request = proto.build_batch_search_request(queries=normalized, ef=ef)
         response = await self._conn.call(self._conn.stub.SearchPointsBatch, request)
         return [
-            [pid.id.value for pid in result.result_point_ids]
+            [
+                (pid.id.value, score)
+                for pid, score in zip(result.result_point_ids, result.scores)
+            ]
             for result in response.results
         ]
 
