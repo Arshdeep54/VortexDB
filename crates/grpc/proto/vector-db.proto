@@ -42,6 +42,7 @@ message SearchRequest {
 
 message SearchResponse {
   repeated PointID result_point_ids = 1;
+  repeated float scores = 2;
 }
 
 message DenseVector {

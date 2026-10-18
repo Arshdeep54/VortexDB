@@ -41,7 +41,7 @@ impl VectorIndex for FlatIndex {
         query_vector: DenseVector,
         similarity: Similarity,
         k: usize,
-    ) -> Result<Vec<PointId>, IndexError> {
+    ) -> Result<Vec<(PointId, f32)>, IndexError> {
         let scores = self
             .index
             .iter()
@@ -65,7 +65,7 @@ impl VectorIndex for FlatIndex {
         Ok(heap
             .into_sorted_vec()
             .into_iter()
-            .map(|v| v.point_id.unwrap())
+            .map(|v| (v.point_id.unwrap(), v.distance))
             .collect())
     }
 }

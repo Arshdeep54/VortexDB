@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use defs::{DenseVector, Dimension, IndexedVector, PointId, Similarity};
-use uuid::Uuid;
 
 use crate::VectorIndex;
 use crate::{IndexError, Result, distance};
@@ -197,23 +196,34 @@ impl VectorIndex for HnswIndex {
         }
         Ok(false)
     }
-    /// Search for top-k ids
+    /// Search for top-k (id, distance) pairs
     /// - normalize query for cosine (1 − cos)
     /// - pick a non-deleted entry point
     /// - greedy descend from the top layer to level 1
     /// - run ef-best-first at level 0 with ef0 = max(ef, k)
-    /// - return up to k ids by ascending distance
-    fn search(&self, query: DenseVector, similarity: Similarity, k: usize) -> Result<Vec<PointId>> {
+    /// - return up to k (id, distance) pairs by ascending distance
+    fn search(
+        &self,
+        query: DenseVector,
+        similarity: Similarity,
+        k: usize,
+    ) -> Result<Vec<(PointId, f32)>> {
         self.search_with_ef(query, similarity, k, None)
     }
 
     fn search_with_ef(
         &self,
         mut query: DenseVector,
-        _similarity: Similarity,
+        similarity: Similarity,
         k: usize,
         ef: Option<usize>,
-    ) -> Result<Vec<PointId>> {
+    ) -> Result<Vec<(PointId, f32)>> {
+        if similarity != self.similarity {
+            return Err(IndexError::UnsupportedSimilarity {
+                metric: format!("{:?}", similarity),
+            });
+        }
+
         if k == 0 {
             return Ok(Vec::new());
         }
@@ -247,8 +257,10 @@ impl VectorIndex for HnswIndex {
         let ef0 = max(ef.unwrap_or(self.ef), k);
         let mut w = self.search_layer_for_insert(ep, 0, &query, ef0)?;
         w.truncate(k);
-        let result: Vec<Uuid> = w.into_iter().map(|(id, _)| id).collect();
-        Ok(result)
+        if matches!(self.similarity, Similarity::Euclidean) {
+            w.iter_mut().for_each(|(_, d)| *d = d.sqrt());
+        }
+        Ok(w)
     }
 }
 

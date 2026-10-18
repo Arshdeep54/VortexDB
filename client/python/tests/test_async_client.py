@@ -173,7 +173,8 @@ def test_async_search_success(client, mock_connection):
             result_point_ids=[
                 Mock(id=Mock(value="p1")),
                 Mock(id=Mock(value="p2")),
-            ]
+            ],
+            scores=[0.1, 0.2],
         )
 
         results = await client.search(
@@ -182,7 +183,7 @@ def test_async_search_success(client, mock_connection):
             limit=2,
         )
 
-        assert results == ["p1", "p2"]
+        assert results == [("p1", 0.1), ("p2", 0.2)]
 
     asyncio.run(run())
 
@@ -192,20 +193,21 @@ def test_async_search_with_query_object(client, mock_connection):
         mock_connection.call.return_value = Mock(
             result_point_ids=[
                 Mock(id=Mock(value="p1")),
-            ]
+            ],
+            scores=[0.1],
         )
 
         q = SearchQuery(DenseVector([1, 2, 3]), Similarity.COSINE, 2)
         results = await client.search(query=q)
 
-        assert results == ["p1"]
+        assert results == [("p1", 0.1)]
 
     asyncio.run(run())
 
 
 def test_async_search_accepts_ef(client, mock_connection):
     async def run():
-        mock_connection.call.return_value = Mock(result_point_ids=[])
+        mock_connection.call.return_value = Mock(result_point_ids=[], scores=[])
 
         await client.search(
             vector=DenseVector([1, 2, 3]),
@@ -239,8 +241,8 @@ def test_async_batch_search_full_tuple(client, mock_connection):
     async def run():
         mock_connection.call.return_value = Mock(
             results=[
-                Mock(result_point_ids=[Mock(id=Mock(value="p1"))]),
-                Mock(result_point_ids=[Mock(id=Mock(value="p2"))]),
+                Mock(result_point_ids=[Mock(id=Mock(value="p1"))], scores=[0.5]),
+                Mock(result_point_ids=[Mock(id=Mock(value="p2"))], scores=[0.5]),
             ]
         )
         queries = [
@@ -248,7 +250,7 @@ def test_async_batch_search_full_tuple(client, mock_connection):
             (DenseVector([4, 5, 6]), Similarity.EUCLIDEAN, 1),
         ]
         result = await client.batch_search(queries=queries)
-        assert result == [["p1"], ["p2"]]
+        assert result == [[("p1", 0.5)], [("p2", 0.5)]]
 
     asyncio.run(run())
 
@@ -257,14 +259,14 @@ def test_async_batch_search_searchquery_objects(client, mock_connection):
     async def run():
         mock_connection.call.return_value = Mock(
             results=[
-                Mock(result_point_ids=[Mock(id=Mock(value="p1"))]),
+                Mock(result_point_ids=[Mock(id=Mock(value="p1"))], scores=[0.5]),
             ]
         )
         queries = [
             SearchQuery(DenseVector([1, 2, 3]), Similarity.COSINE, 2),
         ]
         result = await client.batch_search(queries=queries)
-        assert result == [["p1"]]
+        assert result == [[("p1", 0.5)]]
 
     asyncio.run(run())
 
@@ -273,7 +275,7 @@ def test_async_batch_search_vectors_with_global_params(client, mock_connection):
     async def run():
         mock_connection.call.return_value = Mock(
             results=[
-                Mock(result_point_ids=[Mock(id=Mock(value="p1"))]),
+                Mock(result_point_ids=[Mock(id=Mock(value="p1"))], scores=[0.5]),
             ]
         )
         queries = [DenseVector([1, 2, 3])]
@@ -282,7 +284,7 @@ def test_async_batch_search_vectors_with_global_params(client, mock_connection):
             similarity=Similarity.MANHATTAN,
             limit=2,
         )
-        assert result == [["p1"]]
+        assert result == [[("p1", 0.5)]]
 
     asyncio.run(run())
 
@@ -293,7 +295,7 @@ def test_async_batch_search_vector_similarity_with_global_limit(
     async def run():
         mock_connection.call.return_value = Mock(
             results=[
-                Mock(result_point_ids=[Mock(id=Mock(value="p1"))]),
+                Mock(result_point_ids=[Mock(id=Mock(value="p1"))], scores=[0.5]),
             ]
         )
         queries = [
@@ -303,7 +305,7 @@ def test_async_batch_search_vector_similarity_with_global_limit(
             queries=queries,
             limit=2,
         )
-        assert result == [["p1"]]
+        assert result == [[("p1", 0.5)]]
 
     asyncio.run(run())
 
