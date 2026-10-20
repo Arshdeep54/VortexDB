@@ -133,6 +133,9 @@ fn api_error_to_response(err: &ApiError) -> (StatusCode, String) {
         ApiError::PointNotFound { .. } => (StatusCode::NOT_FOUND, err.to_string()),
         ApiError::DimensionMismatch { .. } => (StatusCode::BAD_REQUEST, err.to_string()),
         ApiError::InvalidSearchLimit { .. } => (StatusCode::BAD_REQUEST, err.to_string()),
+        ApiError::InvalidSparseVector { .. } => (StatusCode::BAD_REQUEST, err.to_string()),
+        ApiError::PointAlreadyExists { .. } => (StatusCode::CONFLICT, err.to_string()),
+        ApiError::MissingVector { .. } => (StatusCode::BAD_REQUEST, err.to_string()),
         ApiError::LockError => (
             StatusCode::SERVICE_UNAVAILABLE,
             "Server is busy, try again".to_string(),

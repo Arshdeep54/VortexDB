@@ -328,7 +328,7 @@ fn execute_modal_action(app: &mut App) -> io::Result<()> {
 
             for (id, _) in ids.into_iter() {
                 if let Some(point) = db.get(id).map_err(to_io)?
-                    && let Some(vector) = point.vector
+                    && let Some(vector) = point.dense_vector
                 {
                     app.vector_list_items.push(VectorListItem {
                         id: point.id,
@@ -616,7 +616,7 @@ fn show_vector_info(app: &mut App, id: Uuid) -> io::Result<()> {
     }
 
     let point = point_opt.unwrap();
-    let vector = point.vector.unwrap_or_default();
+    let vector = point.dense_vector.unwrap_or_default();
     let payload = point.payload;
 
     app.vector_detail = Some(VectorListItem {

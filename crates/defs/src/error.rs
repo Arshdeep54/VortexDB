@@ -53,3 +53,18 @@ impl IntoResponse for AppError {
 }
 // Error type for server
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+#[derive(Debug, Snafu)]
+pub enum SparseError {
+    #[snafu(display("token_ids length {ids} does not match weights length {weights}"))]
+    LengthMismatch { ids: usize, weights: usize },
+
+    #[snafu(display("sparse vector must not be empty"))]
+    Empty,
+
+    #[snafu(display("token_ids must be strictly increasing, violated at index {index}"))]
+    UnsortedTokenIds { index: usize },
+
+    #[snafu(display("weight at index {index} is not finite"))]
+    NonFiniteWeight { index: usize },
+}

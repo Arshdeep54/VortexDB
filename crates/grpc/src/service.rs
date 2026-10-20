@@ -104,7 +104,7 @@ impl VectorDb for VectorDBService {
                 }),
             }),
             vector: Some(DenseVector {
-                values: point.vector.unwrap_or_default(),
+                values: point.dense_vector.unwrap_or_default(),
             }),
             payload,
         }))
