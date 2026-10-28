@@ -51,4 +51,7 @@ pub enum SparseError {
 
     #[snafu(display("weight at index {index} is not finite"))]
     NonFiniteWeight { index: usize },
+
+    #[snafu(display("weight at index {index} is negative"))]
+    NegativeWeight { index: usize },
 }

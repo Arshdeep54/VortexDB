@@ -246,7 +246,7 @@ Factory Helpers:
 SparseVector(token_ids: list[int], weights: list[float])
 ```
 - `token_ids` must be non-empty, non-negative and strictly increasing
-- one finite weight per token id
+- one finite, non-negative weight per token id
 - Immutable (`frozen=True`)
 
 ---
@@ -337,6 +337,7 @@ All client exceptions inherit from `VortexDBError`
 | `UNAUTHENTICATED` | `AuthenticationError` |
 | `NOT_FOUND` | `NotFoundError` |
 | `INVALID_ARGUMENT` | `InvalidArgumentError` |
+| `ALREADY_EXISTS` | `AlreadyExistsError` |
 | `DEADLINE_EXCEEDED` | `TimeoutError` |
 | `UNAVAILABLE` | `ServiceUnavailableError` |
 | Any other error | `InternalServerError` |

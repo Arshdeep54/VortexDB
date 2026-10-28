@@ -44,6 +44,10 @@ impl SparseVector {
             return Err(SparseError::NonFiniteWeight { index: i });
         }
 
+        if let Some(i) = self.weights.iter().position(|&w| w < 0.0) {
+            return Err(SparseError::NegativeWeight { index: i });
+        }
+
         Ok(())
     }
 }

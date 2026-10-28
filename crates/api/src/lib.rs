@@ -30,6 +30,8 @@ fn generate_point_id() -> PointId {
     Uuid::new_v4()
 }
 
+const MAX_SEARCH_LIMIT: usize = 10_000;
+
 pub struct VectorDb {
     storage: Arc<dyn StorageEngine>,
     index: Arc<RwLock<dyn VectorIndex>>, // Using a RwLock instead of Mutex to improve concurrency
@@ -93,10 +95,6 @@ impl VectorDb {
             ids.push(id);
         }
 
-        // Lock order: dense index, then sparse index
-        let mut index = self.index.write().map_err(|_| ApiError::LockError)?;
-        let mut sparse_index = self.sparse_index.write().map_err(|_| ApiError::LockError)?;
-
         for (&id, point) in ids.iter().zip(points) {
             let PointInput {
                 dense_vector,
@@ -109,9 +107,12 @@ impl VectorDb {
                 .insert_point(id, dense_vector.clone(), sparse_vector.clone(), payload)?;
 
             if let Some(vector) = dense_vector {
+                let mut index = self.index.write().map_err(|_| ApiError::LockError)?;
                 index.insert(IndexedVector { id, vector })?;
             }
             if let Some(sv) = sparse_vector {
+                let mut sparse_index =
+                    self.sparse_index.write().map_err(|_| ApiError::LockError)?;
                 sparse_index.insert(id, &sv);
             }
         }
@@ -144,7 +145,7 @@ impl VectorDb {
     }
 
     pub fn search(&self, query: SearchQuery) -> Result<Vec<SearchHit>> {
-        if query.limit == 0 {
+        if query.limit == 0 || query.limit > MAX_SEARCH_LIMIT {
             return Err(ApiError::InvalidSearchLimit { limit: query.limit });
         }
 

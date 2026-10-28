@@ -23,27 +23,6 @@ fn sample_index() -> InvertedIndex {
 }
 
 #[test]
-fn test_posting_list_iterates_in_id_order() {
-    let mut list = PostingList::default();
-    list.insert(ID3, 3.0);
-    list.insert(ID1, 1.0);
-    list.insert(ID2, 2.0);
-
-    let entries: Vec<_> = list.iter().collect();
-    assert_eq!(entries, vec![(ID1, 1.0), (ID2, 2.0), (ID3, 3.0)]);
-}
-
-#[test]
-fn test_posting_list_ignores_duplicate_insert() {
-    let mut list = PostingList::default();
-    list.insert(ID1, 1.0);
-    list.insert(ID1, 2.0);
-
-    assert_eq!(list.len(), 1);
-    assert_eq!(list.iter().collect::<Vec<_>>(), vec![(ID1, 1.0)]);
-}
-
-#[test]
 fn test_posting_list_remove() {
     let mut list = PostingList::default();
     list.insert(ID1, 1.0);

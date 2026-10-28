@@ -47,7 +47,8 @@ impl InvertedIndex {
             }
         }
 
-        let mut heap: BinaryHeap<(Reverse<OrdF32>, PointId)> = BinaryHeap::with_capacity(k + 1);
+        let mut heap: BinaryHeap<(Reverse<OrdF32>, PointId)> =
+            BinaryHeap::with_capacity(k.min(scores.len()) + 1);
         for (point_id, score) in scores {
             heap.push((Reverse(OrdF32(score)), point_id));
             if heap.len() > k {

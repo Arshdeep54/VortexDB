@@ -65,7 +65,7 @@ Insert a point with a dense vector, a sparse vector, or both. At least one is re
 </ParamField>
 
 <ParamField body="sparse_vector" type="SparseVector">
-  Non-empty, strictly increasing `token_ids` with one finite weight each.
+  Non-empty, strictly increasing `token_ids` with one finite, non-negative weight each.
 </ParamField>
 
 <ParamField body="payload" type="Payload">
@@ -111,9 +111,9 @@ Retrieve a point by its ID.
 ```protobuf
 message Point {
   PointID id = 1;
-  DenseVector dense_vector = 2;   // unset if the point has no dense vector
-  SparseVector sparse_vector = 3; // unset if the point has no sparse vector
-  Payload payload = 4;            // unset if the point has no payload
+  Payload payload = 2;            // unset if the point has no payload
+  DenseVector dense_vector = 3;   // unset if the point has no dense vector
+  SparseVector sparse_vector = 4; // unset if the point has no sparse vector
 }
 ```
 

@@ -128,6 +128,8 @@ class SparseVector:
                 raise TypeError("SparseVector weights must be numeric (int or float)")
             if not math.isfinite(w):
                 raise ValueError("SparseVector weights must be finite")
+            if w < 0:
+                raise ValueError("SparseVector weights must not be negative")
 
         if any(a >= b for a, b in zip(self.token_ids, self.token_ids[1:])):
             raise ValueError("SparseVector token_ids must be strictly increasing")

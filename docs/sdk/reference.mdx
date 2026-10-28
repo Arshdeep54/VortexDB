@@ -411,9 +411,9 @@ v = SparseVector([3, 17, 42], [0.5, 1.2, 0.8])
 | Param | Type | Description |
 |-------|------|-------------|
 | `token_ids` | `list[int]` | Non-empty, non-negative, strictly increasing |
-| `weights` | `list[float]` | Finite numbers, one per token id |
+| `weights` | `list[float]` | Finite, non-negative numbers, one per token id |
 
-Raises `TypeError` for wrong types and `ValueError` for empty, mismatched, unsorted, or non-finite values.
+Raises `TypeError` for wrong types and `ValueError` for empty, mismatched, unsorted, non-finite, or negative values.
 
 ---
 
@@ -535,7 +535,7 @@ sparse = SearchQuery(limit=10, query=SparseVector([3, 17], [1.0, 0.5]))
 
 | Param | Type | Description |
 |-------|------|-------------|
-| `limit` | `int` | Max results, must be positive |
+| `limit` | `int` | Max results, between 1 and 10000 |
 | `query` | `DenseQuery \| SparseVector` | The query vector |
 
 ### DenseQuery
@@ -565,6 +565,7 @@ from vortexdb import (
     AuthenticationError,
     NotFoundError,
     InvalidArgumentError,
+    AlreadyExistsError,
     TimeoutError,
     ServiceUnavailableError,
     InternalServerError,
@@ -579,6 +580,7 @@ from vortexdb import (
 | `AuthenticationError` | Invalid or missing API key |
 | `NotFoundError` | Requested resource not found |
 | `InvalidArgumentError` | Invalid input parameters |
+| `AlreadyExistsError` | A point with that id already exists |
 | `TimeoutError` | Request timed out |
 | `ServiceUnavailableError` | Server is unavailable |
 | `InternalServerError` | Server-side error |

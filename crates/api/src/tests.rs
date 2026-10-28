@@ -224,6 +224,24 @@ fn test_search_zero_limit() {
 }
 
 #[test]
+fn test_search_limit_above_max() {
+    let (db, _temp_dir) = create_test_db();
+
+    assert!(
+        db.search(dense_query(vec![1.0, 2.0, 3.0], Similarity::Cosine, 10_000))
+            .is_ok()
+    );
+    assert!(matches!(
+        db.search(dense_query(vec![1.0, 2.0, 3.0], Similarity::Cosine, 10_001)),
+        Err(ApiError::InvalidSearchLimit { limit: 10_001 })
+    ));
+    assert!(matches!(
+        db.search(sparse_query(vec![1], vec![1.0], usize::MAX)),
+        Err(ApiError::InvalidSearchLimit { .. })
+    ));
+}
+
+#[test]
 fn test_empty_database() {
     let (db, _temp_dir) = create_test_db();
 
@@ -579,6 +597,30 @@ fn test_sparse_insert_rejects_invalid_vector() {
         vec![1.0, 1.0],
     )]);
     assert!(matches!(result, Err(ApiError::InvalidSparseVector { .. })));
+}
+
+#[test]
+fn test_sparse_weights_must_not_be_negative() {
+    let (db, _temp_dir) = create_test_db();
+    let result = db.insert_batch(vec![sparse_point(
+        Uuid::new_v4(),
+        vec![1, 2],
+        vec![1.0, -0.5],
+    )]);
+    assert!(matches!(result, Err(ApiError::InvalidSparseVector { .. })));
+
+    assert!(
+        db.insert_batch(vec![sparse_point(
+            Uuid::new_v4(),
+            vec![1, 2],
+            vec![0.0, 1.0]
+        )])
+        .is_ok()
+    );
+    assert!(matches!(
+        db.search(sparse_query(vec![1], vec![-1.0], 5)),
+        Err(ApiError::InvalidSparseVector { .. })
+    ));
 }
 
 #[test]

@@ -126,7 +126,7 @@ A point holds a dense vector, a sparse vector, or both. A dense vector is a list
   </Tab>
 </Tabs>
 
-A sparse vector stores only its non-zero entries, for example from a SPLADE or BM25 encoder. Token ids must be strictly increasing and each weight must be finite:
+A sparse vector stores only its non-zero entries, for example from a SPLADE or BM25 encoder. Token ids must be strictly increasing and each weight must be finite and non-negative:
 
 <Tabs>
   <Tab title="gRPC (Protobuf)">

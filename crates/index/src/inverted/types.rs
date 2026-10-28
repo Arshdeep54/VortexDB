@@ -7,18 +7,16 @@ pub struct PostingList {
 
 impl PostingList {
     pub fn insert(&mut self, point_id: PointId, weight: Element) {
-        if let Err(pos) = self.position(point_id) {
-            self.entries.insert(pos, (point_id, weight));
-        }
+        self.entries.push((point_id, weight));
     }
 
     pub fn remove(&mut self, point_id: PointId) -> bool {
-        match self.position(point_id) {
-            Ok(pos) => {
-                self.entries.remove(pos);
+        match self.entries.iter().position(|&(id, _)| id == point_id) {
+            Some(pos) => {
+                self.entries.swap_remove(pos);
                 true
             }
-            Err(_) => false,
+            None => false,
         }
     }
 
@@ -32,9 +30,5 @@ impl PostingList {
 
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
-    }
-
-    fn position(&self, point_id: PointId) -> Result<usize, usize> {
-        self.entries.binary_search_by_key(&point_id, |&(id, _)| id)
     }
 }

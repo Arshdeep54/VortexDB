@@ -109,6 +109,7 @@ def test_sparse_vector_valid():
     v = SparseVector((1, 4), (1, 0.5))
     assert v.token_ids == [1, 4]
     assert v.weights == [1.0, 0.5]
+    assert SparseVector([1], [0]).weights == [0.0]
 
 
 @pytest.mark.parametrize(
@@ -119,6 +120,7 @@ def test_sparse_vector_valid():
         ([2, 1], [1.0, 1.0]),
         ([1, 1], [1.0, 1.0]),
         ([1], [float("inf")]),
+        ([1, 2], [1.0, -0.5]),
     ],
 )
 def test_sparse_vector_rejects_invalid_values(token_ids, weights):

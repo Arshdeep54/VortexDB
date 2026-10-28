@@ -71,9 +71,9 @@ message SparseVector {
 
 message Point {
   PointID id = 1;
-  DenseVector dense_vector = 2;
-  SparseVector sparse_vector = 3;
-  Payload payload = 4;
+  Payload payload = 2;
+  DenseVector dense_vector = 3;
+  SparseVector sparse_vector = 4;
 }
 
 message PointID {
